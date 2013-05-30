@@ -1,0 +1,43 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<script  src='js/client-CID.js'></script>
+		<script  src='js/Base64.js'></script>
+
+	</head>
+	<body>
+		<h1>PushPack service validator</h1>
+		<div id="fields">
+			<fieldset id="main">
+				<legend>Get manifest</legend>
+				<p>
+					<label for="uri">Manifest url: </label><br>
+					<input id="uri" type="url" /><br/>
+					<input id="getManifest" type="button" value="Get" onclick="clientCID.getManifest();"/>
+				</p>					
+			</fieldset>
+			<fieldset id="auth" style="display:none">
+				<legend>Authentication</legend>
+				<p>
+					<label for="user" style="display:block; float:left; width:90px">Login: </label>
+					<input id="user" type="text"/>
+					<br/>
+					<label for="password" style="display:block; float:left; width:90px">Password:</label>
+					<input id="password" type="password"/>
+				</p>
+			</fieldset>
+			
+			<fieldset id="push" style="display:none">
+				<legend>Push</legend>
+				<p>
+					<label for="file">Address of the file to push: </label>
+					<br/>
+					<input id="file" type="file"/>
+					<br/>
+					<input id="pushButton" type="button" value="Push"/>
+				</p>
+			</fieldset>
+		</div>
+	</body>
+</html>
