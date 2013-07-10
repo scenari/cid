@@ -33,13 +33,17 @@
  */
 
 var clientCID = {
+	
+	fServer : {},
+	
 
 	fManifest : {},
 
 	getManifest : function() {
 		this.initForm();
 		var vMethode = "GET" ; var vUrl = document.getElementById("uri").value;
-		vXmlhttp = this.getHttpRequest(vMethode, vUrl);
+		vXmlhttp = this.getHttpRequest();
+		this.fServer = vUrl.split("/")[2];
 		vXmlhttp.open(vMethode, vUrl);
 		vXmlhttp.send();
 
@@ -55,34 +59,53 @@ var clientCID = {
 		};
 	},
 
-	push : function(method, url) {
+	push : function(method, pUrl) {
 
 		var fd = new FormData();
 		vXmlhttp = this.getHttpRequest();
 		var field = document.getElementById("file");
 		fd.append("upload", field.files[0]);
-
-		vXmlhttp.open(method, url);
-		vXmlhttp.onload = function(){
-			if(urlToLoad)
-				document.location.href = urlToLoad;
-			else{
-				var isHtml = /<\!DOCTYPE HTML(.|\n)+<\/html>$/mi;
-				if(isHtml.test(vXmlhttp.response)){
-					document.write(vXmlhttp.response);
+		if(pUrl.charAt(0)=="/") vXmlhttp.fUrl = this.fServer+pUrl;
+		else vXmlhttp.fUrl = pUrl;
+		vXmlhttp.open(method, pUrl);
+		vXmlhttp.onreadystatechange = function(){
+			if(this.readyState === 4){
+				if(this.getResponseHeader("Location")){
+					var vUrl ;
+					if(this.getResponseHeader("Location").search("http") != 0){
+						if(this.getResponseHeader("Location").charAt(0)=="/")
+							vUrl = "http://"+ document.getElementById("user").value+":"+document.getElementById("password").value + "@"+clientCID.fServer+this.getResponseHeader("Location");
+						else{
+							vUrl = "http://" + document.getElementById("user").value+":"+document.getElementById("password").value + "@";
+							for(var i=0 ; i < this.fUrl.split("/").length -1 ; i++){
+								vUrl += this.fUrl.split("/")[i] + "/";
+							}
+							vUrl += this.getResponseHeader("Location");
+						}
+					}
+					else
+						vUrl = this.getResponseHeader("Location").replace("://", "://"+document.getElementById("user").value+":"+document.getElementById("password").value + "@");
+					
+					document.getElementById("frame").setAttribute("src", vUrl);
+					document.getElementById("negociation").style.display="";
 				}
 			}
-		}
-		vXmlhttp.onreadystatechange = clientCID.triggered;
-				
+		}				
 		var authNode = xmlNode.firstChild(xmlNode.firstChild(xmlNode
 				.firstChild(clientCID.fManifest)));
 		switch (authNode.nodeName) {
 			case "cid:basicHttp":
-				var auth = this.makebaseAuth(document.getElementById("user").value,
-						document.getElementById("password").value);
-				vXmlhttp.setRequestHeader('Authorization', auth);
-	
+				var auth = btoa(document.getElementById("user").value+":"+document.getElementById("password").value);
+				vXmlhttp.setRequestHeader('Authorization', "Basic "+auth);
+				if(authNode.hasAttribute("testUrl")){
+					var vTestXhr = this.getHttpRequest();
+					vTestXhr.open("GET",authNode.getAttribute("testUrl"), false, document.getElementById("user").value, document.getElementById("password").value);
+					vTestXhr.send();
+					if(vTestXhr.status != 200) {
+						window.alert("L'authentification à échouée. Veuillez vérifier votre identifiant et votre mot de passe.")
+						return;
+					}
+				}
 				break;
 			case "cid:none":
 				break;
@@ -132,7 +155,6 @@ var clientCID = {
 		}
 		
 		var vNego = xmlNode.firstChild(xmlNode.firstChild(vMethod));
-		urlToLoad = null;
 		switch(vNego.nodeName){	
 			case "cid:frameweb":
 			break;
@@ -142,12 +164,6 @@ var clientCID = {
 			
 		}
 
-	},
-
-	makebaseAuth : function(user, password) {
-		var tok = user + ':' + password;
-		var hash = Base64.encode(tok);
-		return "Basic " + hash;
 	},
 
 	getHttpRequest : function() {
@@ -229,3 +245,4 @@ var xmlNode = {
 	}
 
 }
+
