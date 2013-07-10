@@ -44,34 +44,50 @@ $password = "CIDpassword";
 
 switch ($_SERVER['REQUEST_METHOD']) {
 	case 'GET':
-		echo "<?xml version='1.0' encoding='UTF-8'?>
-<cid:cid xmlns:cid='http://www.kelis.fr/cid/v1/core'>
-	<cid:authentication>
-		<cid:basicHttp/>
-	</cid:authentication>
-	<cid:content>
-		<cid:simpleContent mymetype='*/*'/>	
-	</cid:content>
-	<cid:protocol>
-		<cid:singleHttpRequest method='POST' url=\"".$_SERVER['PHP_SELF']."\">
-			<cid:negotiation>
-				<cid:frameweb/>
-			</cid:negotiation>
-		</cid:singleHttpRequest>
-	</cid:protocol>
-</cid:cid>";
-		header("Content-Type:application/xml");
+		if(!isset($_GET["testUrl"])){
+			echo "<?xml version='1.0' encoding='UTF-8'?>
+	<cid:cid xmlns:cid='http://www.kelis.fr/cid/v1/core'>
+		<cid:authentication>
+			<cid:basicHttp testUrl=\"".$_SERVER['PHP_SELF']."?testUrl\"/>
+		</cid:authentication>
+		<cid:content>
+			<cid:simpleContent mymetype='*/*'/>	
+		</cid:content>
+		<cid:protocol>
+			<cid:singleHttpRequest method='POST'  multipartField='upload' url='".$_SERVER['PHP_SELF']."'>
+				<cid:negotiation>
+					<cid:frameweb/>
+				</cid:negotiation>
+			</cid:singleHttpRequest>
+		</cid:protocol>
+	</cid:cid>";
+			header("Content-Type:application/xml");
+		}
+		else{
+			if ($_SERVER['PHP_AUTH_USER']!= $user || $_SERVER['PHP_AUTH_PW'] != $password)
+				header('WWW-Authenticate: Basic', false, 401);
+		}
 	break;
 	case 'POST':
 		if ($_SERVER['PHP_AUTH_USER']!= $user || $_SERVER['PHP_AUTH_PW'] != $password) {
 			header('WWW-Authenticate: Basic', false, 401);
 			exit;
 		} else {
-			if(move_uploaded_file($_FILES["upload"]['tmp_name'],"./".basename($_FILES["upload"]['name']))){
+			$filename = $_FILES["upload"]['name'];
+			
+			if($filename == "blob"){
+				$contentDisposition = $_SERVER["HTTP_CONTENT_DISPOSITION"];
+				$start = strrpos($contentDisposition, "filename=\"")+10;
+				$size = strlen($contentDisposition) -1 - $start;
+				echo substr($contentDisposition,$start , $size);
+				$filename = substr($contentDisposition,$start , $size);
+			}
+			if(move_uploaded_file($_FILES["upload"]['tmp_name'],"./".basename($filename))){
 				//if($autoDezip){
 					//unzip($path,$localUploadsFolder);
 				//}
-				header("Location:.");
+				header("Location:.", false, 201);
+				
 			}
 			else{
 				//Assume that if the delivery failed. The content is not conform to the expected type.
