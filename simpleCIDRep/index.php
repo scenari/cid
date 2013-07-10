@@ -33,34 +33,73 @@
  * terms of any one of the MPL, the GPL, the LGPL or the CeCILL. ]]LICENCE
  */
 
-include 'params.php';
-include 'lib.php';
+
+//Todo
+/**
+ * Uploader le contenu
+ * Retourner une URL avec paramètre php... 
+ * Produire la page de négo avec url unique...
+ */
+
+include 'php/params.php';
+include 'php/lib.php';
 
 switch ($_SERVER['REQUEST_METHOD']) {
 case 'GET':
-	
-	echo "<?xml version='1.0' encoding='UTF-8'?>
-<cid:cid xmlns:cid='http://www.kelis.fr/cid/v1/core'>
-	<cid:authentication>
-		";
-	if($authorizeNoneAuth) echo "<cid:none/>
-		";
-	if($authorizeBasicHttpAuth)	echo "<cid:basicHttp/>
- 		";
-	echo "</cid:authentication>
-	<cid:content>
-		<cid:simpleContent mymetype='*/*'/>
-	</cid:content>
-	<cid:protocol>
-		<cid:singleHttpRequest method='POST' url=\"".$_SERVER['PHP_SELF']."\">
-			<cid:negotiation>
-				<cid:frameweb/>
-			</cid:negotiation>
-		</cid:singleHttpRequest>
-	</cid:protocol>
-</cid:cid>";
-	header("Content-Type:application/xml");
-
+	if(!isset($_GET["uploadedFile"])){
+		echo "<?xml version='1.0' encoding='UTF-8'?>
+		<cid:cid xmlns:cid='http://www.kelis.fr/cid/v1/core'>
+			<cid:authentication>
+				";
+			if($authorizeNoneAuth) echo "<cid:none/>
+				";
+			if($authorizeBasicHttpAuth)	echo "<cid:basicHttp/>
+		 		";
+			echo "</cid:authentication>
+			<cid:content>
+				<cid:simpleContent mymetype='*/*'/>
+			</cid:content>
+			<cid:protocol>
+				<cid:singleHttpRequest method='POST' multipartField='upload' url=\"".$_SERVER['PHP_SELF']."\">
+					<cid:negotiation>
+						<cid:frameweb>
+							<cid:resultEvent eventType='permaLink' bodyType='text/json-ld' />
+						</cid:frameweb>
+					</cid:negotiation>
+				</cid:singleHttpRequest>
+			</cid:protocol>
+		</cid:cid>";
+			header("Content-Type:application/xml");
+	}
+	else{
+		if ($authorizeBasicHttpAuth && (array_key_exists($_SERVER['PHP_AUTH_USER'], $users ) == null || $users[$_SERVER['PHP_AUTH_USER']]!=$_SERVER['PHP_AUTH_PW'])){
+			header('WWW-Authenticate: Basic', false, 401);
+			exit;
+		} else {
+		echo "<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN' 'http://www.w3.org/TR/html4/loose.dtd'>
+			<html>
+			<head>
+			<script src='js/fileSelector.js'></script>
+			<script>fs=";
+		echo getUploadFs($localUploadsFolder);
+		echo "</script>
+			</head>
+			<body>";
+			echo "<form  enctype='multipart/form-data' action='".$_SERVER['PHP_SELF']."' method='post'>
+					<p>Fichier upload&eacute; : ".$_GET["uploadedFile"]."</p>
+					<input id='uploadedFile' name='uploadedFile' style='display:none' type='text' value='".$_GET["uploadedFile"]."'/>
+						<fieldset>
+							<legend>Choix de l'URL d'upload</legend>
+							<div id='fileSelector'/>
+						</fieldset>
+						<input id='pathInput' name='pathInput' type=text value=''/>
+						<input id='finalizeUpload' type='submit' value='send'/>
+					</form>
+					<script>fileSelector.loadContener(new Array());</script>
+				</body>
+			</html>";
+		}
+	}
 	break;
 case 'POST':
 	if(!isset($_POST["pathInput"])){
@@ -68,33 +107,19 @@ case 'POST':
 				header('WWW-Authenticate: Basic', false, 401);
 				exit;	
 		} else {
-			echo "<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN' 'http://www.w3.org/TR/html4/loose.dtd'>
-			<html>				
-			<head>
-			<script src='http://".$_SERVER["HTTP_HOST"].str_replace("/index.php", "/", $_SERVER["REQUEST_URI"])."js/fileSelector.js'></script>
-			<script>fs=";
-			echo getUploadFs($localUploadsFolder);
-			echo "</script>
-			</head>
-			<body>";
-			$path = upload($tempFolder, $_FILES["upload"]);
-			if($path){
-				echo "<form  enctype='multipart/form-data' action='".$_SERVER['PHP_SELF']."' method='post'>
-					<p>Fichier upload&eacute; : </p>
-					<input id='uploadedFile' name='uploadedFile' style='display:none' type='text' value='".$_FILES['upload']['name']."'/>
-						<fieldset>
-							<legend>Choix de l'URL d'upload</legend>
-							<div id='fileSelector'/>
-						</fieldset>
-						<input id='pathInput' name='pathInput' type=text value=''/>		
-						<input id='finalizeUpload' type='submit' value='send'/>
-					</form>
-					<script>fileSelector.loadContener(new Array());</script>
-				</body>
-			</html>";	  
+			$filename = $_FILES["upload"]['name'];
+				
+			if($filename == "blob"){
+				$contentDisposition = $_SERVER["HTTP_CONTENT_DISPOSITION"];
+				$start = strrpos($contentDisposition, "filename=\"")+10;
+				$size = strlen($contentDisposition) -1 - $start;
+				echo substr($contentDisposition,$start , $size);
+				$filename = substr($contentDisposition,$start , $size);
 			}
-			else
-				echo "<p>Erreur lors de l'envoi du fichier</p>";	
+			$path = $tempFolder.$filename;
+			if(move_uploaded_file($_FILES["upload"]['tmp_name'],$path))
+				header("Location:".$_SERVER['PHP_SELF']."?uploadedFile=".$filename, false, 202);
+			else http_response_code(415);
 		}
 	}
 	elseif(rename ( $tempFolder.$_POST['uploadedFile'], $localUploadsFolder.$_POST['pathInput'] ))
