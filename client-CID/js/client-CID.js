@@ -32,217 +32,234 @@
  * terms of any one of the MPL, the GPL, the LGPL or the CeCILL. ]]LICENCE
  */
 
-var clientCID = {
+var cidLib = {
+	//Auths
 	
-	fServer : {},
-	
-
-	fManifest : {},
-
-	getManifest : function() {
-		this.initForm();
-		var vMethode = "GET" ; var vUrl = document.getElementById("uri").value;
-		vXmlhttp = this.getHttpRequest();
-		this.fServer = vUrl.split("/")[2];
-		vXmlhttp.open(vMethode, vUrl);
-		vXmlhttp.send();
-
-		// vXmlhttp.withCredentials = true;
-		// Response handlers.
-		vXmlhttp.onload = function() {
-			clientCID.fManifest = vXmlhttp.responseXML;
-			clientCID.prepareRequest();
+	basicHttpAuth : function(){
+		this.fName = "basicHttp";
+		
+		this.init = function(pNode){
+			document.getElementById("auth").style.display = "";
+			if(pNode.hasAttribute("testUrl")){
+				this.fTestUrl = pNode.getAttribute("testUrl");
+				this.checkAuth = function(pMethod){
+					var vXhr = clientCID.getHttpRequest();
+					vXhr.open(pMethod, this.fTestUrl, false);
+					vXhr.send();
+					if(vXhr.readyState === 4 && vXhr.status === 200) return true;
+					else return false;
+				}
+				
+				
+				
+				
+				this.fTestUrl = pNode.getAttribute("testUrl");
+			}
 		};
-
-		vXmlhttp.onerror = function() {
-			alert('Woops, there was an error making the request.');
+		
+		
+		this.makeAuth = function(pXhr){
+			pXhr.setRequestHeader('Authorization', "Basic " + btoa(document.getElementById("user").value+":"+document.getElementById("password").value), false);
 		};
 	},
 
-	push : function(method, pUrl) {
+	//Protocols
+	singleHttpRequest : function(pNegociation){
+		this.fXhr = clientCID.getHttpRequest();
+		this.fFd = new FormData();
+		this.fNegociation = pNegociation;
+		this.fUrl;
+		this.fMultipartField;
+		this.fMethod;
+	}
 
-		var fd = new FormData();
-		vXmlhttp = this.getHttpRequest();
-		var field = document.getElementById("file");
-		fd.append("upload", field.files[0]);
-		if(pUrl.charAt(0)=="/") vXmlhttp.fUrl = this.fServer+pUrl;
-		else vXmlhttp.fUrl = pUrl;
-		vXmlhttp.open(method, pUrl);
-		vXmlhttp.onreadystatechange = function(){
-			if(this.readyState === 4){
-				if(this.getResponseHeader("Location")){
-					var vUrl ;
-					if(this.getResponseHeader("Location").search("http") != 0){
-						if(this.getResponseHeader("Location").charAt(0)=="/")
-							vUrl = "http://"+ document.getElementById("user").value+":"+document.getElementById("password").value + "@"+clientCID.fServer+this.getResponseHeader("Location");
-						else{
-							vUrl = "http://" + document.getElementById("user").value+":"+document.getElementById("password").value + "@";
-							for(var i=0 ; i < this.fUrl.split("/").length -1 ; i++){
-								vUrl += this.fUrl.split("/")[i] + "/";
+
+}
+
+
+cidLib.singleHttpRequest.prototype.init = function(pNode){
+	if(pNode)
+		this.fNode = pNode;
+
+	//Init protocol
+	var vUrlCheck = /^http:\/\/.*/;
+	this.fUrl = this.fNode.getAttribute("url");
+	if(!vUrlCheck.test(this.fUrl)){
+		if(this.fUrl.charAt(0)=='/')
+			this.fUrl = "http://"+document.fManifestHost + this.fUrl;
+		else
+			this.fUrl = "http//"+this.fUrl;
+	}
+	
+	this.fMultipartField = this.fNode.getAttribute("multipartField");
+	
+	this.fMethod = this.fNode.getAttribute("method");
+	
+	this.fXhr.onuploadprogress = function(evt){
+		var vPercentComplete = (evt.loaded/ evt.total)*100;
+		if(vPercentComplete != 100 && document.getElementById("progress").style.display == "none"){
+			document.getElementById("progress").style.display ="";
+			document.getElementById("progressLabel").style.display ="";
+		}
+		
+	    document.getElementById("progress").setAttribute( "value", vPercentComplete );
+	    
+	}
+	
+	this.fXhr.onload = function(){
+	    	document.getElementById("progress").style.display="none";
+	    	document.getElementById("progressLabel").style.display="none";
+	}
+	this.fXhr.open(this.fMethod, this.fUrl);
+	
+	document.getElementById("pushButton").setAttribute("onClick","clientCID.publish();");	
+
+	
+	//Init Nego
+	switch(this.fNegociation){
+		case "frameweb":
+			this.fXhr.onreadystatechange = function(){
+				if(this.readyState === 4){
+					if(this.status < 200 || this.status >= 300){
+						window.alert("Error during package sending "+this.status);
+						document.fProtocol.init();
+					}
+					else{
+						var vUrlCheck = /^http:\/\/.*/;
+						var vUrl = this.getResponseHeader("Location");
+						if(!vUrlCheck.test(vUrl)){
+							if(vUrl.charAt(0)=='/')
+								vUrl = "http://"+document.fProtocol.fUrl.split("/")[2] + vUrl;
+							else if(vUrl.charAt(0)=='.'){
+								vLastUrl = document.fProtocol.fUrl.split("/");
+								vBaseUrl = "http://";
+								for (var i = 2; i < vLastUrl.length -1; i++) {
+									vBaseUrl += vLastUrl[i]+"/";
+								}
+								vUrl = vBaseUrl + vUrl;
 							}
-							vUrl += this.getResponseHeader("Location");
+								
+						}
+						var vXhr = clientCID.getHttpRequest();
+						vXhr.open("GET", vUrl);
+						document.fAuth.makeAuth(vXhr);
+						vXhr.onreadystatechange = function(){
+							if(this.readyState === 4){
+								window.frames[0].document.write(this.response);
+								document.getElementById("negociation").style.display = "";
+							}
+						}
+						vXhr.send();
+						
+						
+					}
+				}
+			};
+		break;
+	}
+	
+	document.getElementById("push").style.display="";
+
+	
+};
+
+cidLib.singleHttpRequest.prototype.publish = function(pAuth){
+	switch (pAuth.fName){
+		case "basicHttp" :
+			pAuth.makeAuth(this.fXhr);
+			break;
+		case "none" :
+			break;
+	}
+	this.fFd.append(this.fMultipartField, document.getElementById("file").files[0]);
+	this.fXhr.send(this.fFd);
+}
+
+
+
+var clientCID = {	
+
+	fManifest : {},
+	
+	fNamespace : {},
+	
+	fSupportedAuths : [{fName : "basicHttp", fAuth : function(){return new cidLib.basicHttpAuth()}}],
+	
+	fSupportedProtocols : [{fName : "singleHttpRequest", fProtocol : function(){return new cidLib.singleHttpRequest("frameweb");}}],
+	
+	getManifest : function(){
+		var vXhr = clientCID.getHttpRequest();		
+		vXhr.onreadystatechange = function() {
+			if(vXhr.readyState === 4 ){
+
+				if(vXhr.responseXML && vXhr.status === 200){
+					clientCID.fManifest = vXhr.responseXML;
+					clientCID.fNamespace = clientCID.fManifest.firstChild.getAttribute("xmlns:cid");
+					var vFoundAuth;
+					var vFoundProtocol;
+					//Auth choice
+					//For each supported auth
+					for (var i = 0; i < clientCID.fSupportedAuths.length; i++) {
+						//if this auth is supported by the server
+						var vAuthName = clientCID.fSupportedAuths[i].fName;
+						var vAuthNodes = clientCID.fManifest.getElementsByTagNameNS(clientCID.fNamespace,vAuthName);
+						if(vAuthNodes.length != 0){
+							//init Auth
+							document.fAuth = clientCID.fSupportedAuths[i].fAuth();
+							document.fAuth.init(vAuthNodes[0]);
+							vFoundAuth = true;
+							break;
 						}
 					}
-					else
-						vUrl = this.getResponseHeader("Location").replace("://", "://"+document.getElementById("user").value+":"+document.getElementById("password").value + "@");
-					
-					document.getElementById("frame").setAttribute("src", vUrl);
-					document.getElementById("negociation").style.display="";
-				}
-			}
-		}				
-		var authNode = xmlNode.firstChild(xmlNode.firstChild(xmlNode
-				.firstChild(clientCID.fManifest)));
-		switch (authNode.nodeName) {
-			case "cid:basicHttp":
-				var auth = btoa(document.getElementById("user").value+":"+document.getElementById("password").value);
-				vXmlhttp.setRequestHeader('Authorization', "Basic "+auth);
-				if(authNode.hasAttribute("testUrl")){
-					var vTestXhr = this.getHttpRequest();
-					vTestXhr.open("GET",authNode.getAttribute("testUrl"), false, document.getElementById("user").value, document.getElementById("password").value);
-					vTestXhr.send();
-					if(vTestXhr.status != 200) {
-						window.alert("L'authentification à échouée. Veuillez vérifier votre identifiant et votre mot de passe.")
+					if(!vFoundAuth){
+						window.alert("No auth found : "+document.document.getElementById("manifestURL").value+" is not yet supported by this client.");
+						return;
+					}
+					//Procol choice
+					//For each couple protocol/negociation
+					for(var i = 0 ; i < clientCID.fSupportedProtocols.length ; i++){
+						if(vFoundProtocol) break;
+						var vProtocols = clientCID.fManifest.getElementsByTagNameNS(clientCID.fNamespace,clientCID.fSupportedProtocols[i].fName);
+						for (var j = 0; j < vProtocols.length; j++) {
+							if(vProtocols[j].getElementsByTagNameNS(clientCID.fNamespace,clientCID.fSupportedProtocols[i].fProtocol.fNegociation)){
+								document.fProtocol = clientCID.fSupportedProtocols[i].fProtocol();
+								document.fProtocol.init(vProtocols[j]);
+								vFoundProtocol = true;
+								break;
+							}
+						}
+					}
+					if(!vFoundProtocol){
+						window.alert("No protocol found :"+document.document.getElementById("manifestURL").value+" is not yet supported by this client.");
 						return;
 					}
 				}
-				break;
-			case "cid:none":
-				break;
-	
-			default:
-				window.alert("Erreur dans la description de l'authentification du manifest");
-				break;
-		}
-
-		vXmlhttp.send(fd);
+				else if(vXhr.status != 200){
+					window.alert("Error in the manifest response. Check if the URL is correct and if the resource is online");
+				}
+				else{
+					window.alert("The CID manifest is not well-formed.");
+				}
+			}
+		};
+		var vUrl = document.getElementById("uri").value.match("http://") ? document.getElementById("uri").value : "http://" + document.getElementById("uri").value ;
+		document.fManifestHost = vUrl.split("/")[2];
+		vXhr.open("GET", vUrl);
+		vXhr.send();
 	},
 	
-
-	prepareRequest : function() {
-		//Récupération et traitement de la méthode d'envoie
-		var vMethod = xmlNode.firstChild(xmlNode.childNodes(xmlNode
-				.firstChild(clientCID.fManifest))[2]);
-		switch (vMethod.nodeName) {
-			case "cid:singleHttpRequest":
-				document.getElementById("pushButton").setAttribute("onClick","clientCID.push(\""+
-						vMethod.getAttribute("method")+"\",\""+vMethod.getAttribute("url")+"\")");	
-				break;
-				
-			default:
-				window.alert("L'envoi décrit dans le manifest n'est pas compatible avec le client.");
-				break;
-		}
-		
-		var vAuth = xmlNode.firstChild(xmlNode.firstChild(xmlNode
-				.firstChild(clientCID.fManifest)));
-		switch (vAuth.nodeName) {
-
-			case "cid:basicHttp":
-				document.getElementById("auth").style.display = "";
-				document.getElementById("push").style.display = "";
-	
-				break;
-			case "cid:none":
-				document.getElementById("push").style.display = "";
-	
-				break;
-	
-			default:
-				window.alert("Erreur dans la description de l'authentification du manifest");
-				break;
-
-		}
-		
-		var vNego = xmlNode.firstChild(xmlNode.firstChild(vMethod));
-		switch(vNego.nodeName){	
-			case "cid:frameweb":
-			break;
-			
-			default:
-			break;
-			
-		}
-
+	publish : function(){
+		//if(document.fAuth.checkAuth && document.fAuth.checkAuth(document.fProtocol.fMethod) || !document.fAuth.checkAuth)
+			document.fProtocol.publish(document.fAuth);
+		//else
+		//	window.alert("Authentication error.")
 	},
-
+	
 	getHttpRequest : function() {
 		if (window.XMLHttpRequest
 				&& (!window.location.protocol == "file:" || !window.ActiveXObject))
 			return new XMLHttpRequest();
 		else
 			return new ActiveXObject("Microsoft.XMLHTTP");
-	},
-
-	createCORSRequest : function(method, url) {
-		var xhr = new XMLHttpRequest();
-		if ("withCredentials" in xhr) {
-
-			// Check if the XMLHttpRequest object has a "withCredentials"
-			// property.
-			// "withCredentials" only exists on XMLHTTPRequest2 objects.
-			xhr.open(method, url, true);
-
-		} else if (typeof XDomainRequest != "undefined") {
-
-			// Otherwise, check if XDomainRequest.
-			// XDomainRequest only exists in IE, and is IE's way of making CORS
-			// requests.
-			xhr = new XDomainRequest();
-			xhr.open(method, url);
-
-		} else {
-
-			// Otherwise, CORS is not supported by the browser.
-			xhr = null;
-
-		}
-		return xhr;
-	},
-	initForm : function(){
-		document.getElementById("auth").style.display = "none";
-		document.getElementById("push").style.display = "none";
 	}
-
 };
-
-var xmlNode = {
-	firstChild : function(pNode) {
-		for ( var i = 0; i < pNode.childNodes.length; i++) {
-			if (pNode.childNodes[i].nodeType == 1)
-				return pNode.childNodes[i];
-		}
-		return null;
-	},
-	childNodes : function(pNode) {
-		var vChildren = [];
-		for ( var i = 0; i < pNode.childNodes.length; i++) {
-			if (pNode.childNodes[i].nodeType == 1)
-				vChildren.push(pNode.childNodes[i]);
-		}
-		return vChildren;
-	},
-	nextSibling : function(pNode) {
-		var vActualNodeFound = false;
-		for ( var i = 0; i < pNode.parent.childNodes.length; i++) {
-			if (pNode.parent.childNodes[i] == pNode)
-				vActualNodeFound = true
-			if (vActualNodeFound && pNode.parent.childNodes[i].nodeType == 1)
-				return pNode.parent.childNodes[i];
-		}
-		return null
-	},
-	previsouSibling : function(pNode) {
-		var vPreviousSibling = null;
-		for ( var i = 0; i < pNode.parent.childNodes.length; i++) {
-			if (pNode.parent.childNodes[i] == pNode)
-				return vPreviousSibling;
-
-			if (pNode.parent.childNodes[i].nodeType == 1)
-				vPreviousSibling = pNode.parent.childNodes[i];
-		}
-		return null
-	}
-
-}
-
