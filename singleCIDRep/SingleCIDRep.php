@@ -33,6 +33,12 @@
  * terms of any one of the MPL, the GPL, the LGPL or the CeCILL. ]]LICENCE
  */
 
+$vManifest = "http";
+if(isset($_SERVER['HTTPS'])) $vManifest .= "s";
+$vManifest .= "://".$_SERVER['HTTP_HOST'].$_SERVER['PHP_SELF'];
+$vScriptname=end(explode('/',$_SERVER['PHP_SELF']));
+$vUploadPath = str_replace("/".$vScriptname,'',$vManifest);
+
 if(!file_exists("param.php") && $_GET["cdaction"] != "init"){
 	header("Location: ".$_SERVER["PHP_SELF"]."?cdaction=init");
 }
@@ -179,12 +185,6 @@ else{
 							fwrite($vIndex, "?>");
 							fclose($vIndex);
 							
-							$vManifest = "http";
-							if(isset($_SERVER['HTTPS'])) $vManifest .= "s";
-							$vManifest .= "://".$_SERVER['HTTP_HOST'].$_SERVER['PHP_SELF'];
-							$vScriptname=end(explode('/',$_SERVER['PHP_SELF']));
-							$vUploadPath = str_replace("/".$vScriptname,'',$vManifest);
-					
 							echo "<html><head><title>SingleCidRep installation succed</title><style>";
 							printBaseCSSRules();
 							echo "</style></head><body><h1>Your SingleCIDRep is now ready</h1><p>You should now remove the writing permission of the SingleCidRep parent directory.</p>
