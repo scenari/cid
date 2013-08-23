@@ -64,6 +64,29 @@ else{
 		
 		else{
 			switch ($_GET["cdaction"]){
+				case "control":
+					echo "<html><head><title>Control CID Rep</title><style>";
+					printBaseCSSRules();
+					echo "</style></head><body><h1>Control CID Rep</h1>";
+				
+					echo "<p>Writing permission of root directory: ";
+					if(is_writable(".")) echo "true, you should remove the writing permission of this folder</p>";
+					else echo "false</p>";
+				
+					echo "<p>Writing permission of upload directory: ";
+					if(!is_writable($fLocalUploadsFolder)) echo "false, you should set up the writing permission of this folder</p>";
+					else echo "true</p>";
+					
+					echo "<p>Writing permission of tmp directory: ";
+					if(!is_writable($fTempFolder)) echo "false, you should set up the writing permission of this folder</p>";
+					else echo "true</p>";
+				
+					echo "<p>Maximum upload size: ";
+					echo ini_get("upload_max_filesize");
+					echo  "</p>";
+						
+					echo "</body></html>";
+					break;
 				case "negociationFrame":
 					if ((array_key_exists($_SERVER['PHP_AUTH_USER'], $fUsers ) == null || $fUsers[$_SERVER['PHP_AUTH_USER']]!=$_SERVER['PHP_AUTH_PW'])){
 					 header('WWW-Authenticate: Basic', false, 401);
@@ -126,6 +149,11 @@ else{
 						echo "<html><head><title>Error</title><style>";
 						printBaseCSSRules();
 						echo "</style></head><body><h1>Permission error</h1><p>SingleCidRep parent folder is not writable by the webserver. Please, change the directory permissions in order to process the installation script.</p></body></html>";
+					}
+					else if(file_exists("param.php")){
+						echo "<html><head><title>Error</title><style>";
+						printBaseCSSRules();
+						echo "</style></head><body><h1>Permission error</h1><p>A former param.php file exists on this server. Please, remove it and proceed again.</p></body></html>";
 					}
 					else{
 					echo "<!DOCTYPE html PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN' 'http://www.w3.org/TR/html4/loose.dtd'>
@@ -385,6 +413,11 @@ else{
 					echo "<html><head><title>Error</title><style>";
 					printBaseCSSRules();
 					echo "</style></head><body><h1>Permission error</h1><p>SimpleCidRep parent folder is not writable by the webserver. Please, change the directory permissions in order to process the installation script.</p></body></html>";
+				}
+				else if(file_exists("param.php")){
+					echo "<html><head><title>Error</title><style>";
+					printBaseCSSRules();
+					echo "</style></head><body><h1>Permission error</h1><p>A former param.php file exists on this server. Please, remove it and proceed again.</p></body></html>";
 				}
 				else{
 					try {
