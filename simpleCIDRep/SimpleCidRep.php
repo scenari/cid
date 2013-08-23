@@ -94,10 +94,10 @@ else{
 										<fieldset>
 											<legend>Choix de l'URL d'upload</legend>
 											<div id='toolbar'>
-												<input type='image'  alt='home button' src='https://raw.github.com/scenari/cid/master/simpleCIDRep/icons/home.png' class='toolboxCommand' id='home'  onclick='fileSelector.loadContener(new Array());'/>
+												<input type='button'  value='home' alt='home button' class='toolboxCommand' id='home'  onclick='fileSelector.loadContener(new Array());'/>
 												<label class='toolboxCommand'>Location: </label>
 												<input type='text'  class='toolboxCommand' id='location' disabled='true'  />
-												<input type='image' alt='new folder button' src='https://raw.github.com/scenari/cid/master/simpleCIDRep/icons/newFolder.png' class='toolboxCommand' id='newFolder' onclick='fileSelector.newFolder();'/>
+												<input type='button' value='new folder' alt='new folder button'  class='toolboxCommand' id='newFolder' onclick='fileSelector.newFolder();'/>
 											</div>
 											<ul id='fileSelector'/>
 										</fieldset>
@@ -187,9 +187,9 @@ else{
 							
 										var vTdDelete = document.createElement('td');
 										var vDelete = document.createElement('input');
-										vDelete.setAttribute('type', 'image');
-										vDelete.setAttribute('alt', 'delete user button');
-										vDelete.setAttribute('src','https://raw.github.com/scenari/cid/master/simpleCIDRep/icons/cancel.png');
+										vDelete.setAttribute('type', 'button');
+										vDelete.className='deleteButton';
+										vDelete.setAttribute('value', 'delete');
 										vDelete.onclick = function(){this.parentNode.parentNode.parentNode.removeChild(this.parentNode.parentNode);}
 										vTdDelete.appendChild(vDelete);
 							
@@ -279,6 +279,54 @@ else{
 					header('WWW-Authenticate: Basic', false, 401);
 					exit;
 				} else {
+					if(!is_writable("SCR-Upload")){
+						header("HTTP1/1 500 internal server error");
+						exit;
+					}
+					if($_FILES["upload"]["error"]){
+						switch ($_FILES["upload"]["error"]){
+							case 1:
+								echo "The uploaded file exceeds the upload_max_filesize directive in php.ini.";
+								header("HTTP1/1 413 request entity too large", false, 413);
+								break;
+					
+							case 2:
+								echo "The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form. ";
+								header("HTTP1/1 413 request entity too large", false, 413);
+								break;
+									
+							case 3:
+								echo "The uploaded file was only partially uploaded.";
+								header("HTTP1/1 415 unsupported media type", true, 415);
+								break;
+					
+							case 4:
+								echo "No file was uploaded.";
+								header("HTTP1/1 415 unsupported media type", true, 415);
+								break;
+									
+							case 6:
+								echo "Missing a temporary folder.";
+								header("HTTP1/1 500 internal server error");
+								break;
+									
+							case 7:
+								echo "Failed to write file to disk.";
+								header("HTTP1/1 500 internal server error");
+								break;
+									
+							case 8:
+								echo "A PHP extension stopped the file upload. PHP does not provide a way to ascertain which extension caused the file upload to stop; examining the list of loaded extensions with phpinfo() may help.";
+								header("HTTP1/1 500 internal server error");
+								break;
+									
+							default:
+								echo "unknown error.";
+								header("HTTP1/1 418 i'm a teapot", true, 418);
+								break;
+						}
+						exit;
+					}
 					$vFilename = $_FILES["upload"]['name'];
 						
 					if($vFilename == "blob"){
@@ -576,6 +624,10 @@ fileSelector = {
 	},
 	
 	newFolder : function(){
+		var vEntry = document.createElement('li');
+		vEntry.className='folder';
+		vEntry.id='newFolderEntry';
+		
 		var vFolderName = document.createElement('input');
 		vFolderName.setAttribute('type', 'text');
 		vFolderName.setAttribute('id', 'folderName');
@@ -592,20 +644,23 @@ fileSelector = {
 		vValid.setAttribute('value', 'Valid');
 		vValid.setAttribute('onclick', 'fileSelector.validNewFolder(document.getElementById(\'folderName\').value, document.getElementById(\'sendedLocation\').value);');
 
-		var vContener = document.getElementById('fileSelector');
-		vContener.appendChild(vFolderName);
-		vContener.appendChild(vCancel);
-		vContener.appendChild(vValid);
+		
+		vEntry.appendChild(vFolderName);
+		vEntry.appendChild(vCancel);
+		vEntry.appendChild(vValid);
+
+		document.getElementById('fileSelector').appendChild(vEntry);
+			
+		document.getElementById('newFolder').disabled=true;
 	},
 	
 	cancelNewFolder : function(){
-		var vFolderName = document.getElementById('folderName');
-		var vCancel = document.getElementById('folderNameCancel');
-		var vValid = document.getElementById('folderNameValid');
+		var vEntry = document.getElementById('newFolderEntry');
 		
-		vFolderName.parentNode.removeChild(vFolderName);
-		vCancel.parentNode.removeChild(vCancel);
-		vValid.parentNode.removeChild(vValid);
+		
+		vEntry.parentNode.removeChild(vEntry);
+		
+		document.getElementById('newFolder').disabled=false;
 	},
 	
 	validNewFolder : function(pName, pPath){
@@ -615,7 +670,7 @@ fileSelector = {
 			var vXhr = new XMLHttpRequest();
 			var vFd = new FormData();
 			vFd.append('newFolderName', pPath+pName);
-			vXhr.open('POST', window.location.origin + window.location.pathname+'?cdaction=newFolder', false);
+			vXhr.open('POST', window.location.pathname+'?cdaction=newFolder', false);
 			vXhr.send(vFd);
 			switch(vXhr.status){
 				case 200 :
@@ -631,7 +686,7 @@ fileSelector = {
 				}
 
 				var vEntry = document.createElement('li');
-				vEntry.clasNname ='folder';
+				vEntry.className ='folder';
 				var vLoadContener = 'fileSelector.loadContener([' + fileSelector.fCurrentPath;
 				if(fileSelector.fCurrentPath != '')
 					vLoadContener += ',';
@@ -684,8 +739,25 @@ function printFileSelectorCSS(){
 		border-bottom: 2px solid grey;
 		padding-bottom:4px;margin-bottom:4px;
 	}
-	input[type='image']{
-		vertical-align: middle;
+	input[type='button']{
+		background-color: transparent;
+		background-repeat: no-repeat;
+		height:24px;
+		width:48px;
+		border:none;
+		color:transparent;
+	}
+	#home{
+		background-image: url(https://raw.github.com/scenari/cid/master/simpleCIDRep/icons/home.png);
+	}
+	#newFolder{
+		background-image: url(https://raw.github.com/scenari/cid/master/simpleCIDRep/icons/newFolder.png);
+	}
+	#folderNameCancel{
+		background-image: url(https://raw.github.com/scenari/cid/master/simpleCIDRep/icons/cancel.png);
+	}
+	#folderNameValid{
+		background-image: url(https://raw.github.com/scenari/cid/master/simpleCIDRep/icons/valid.png);
 	}
 	fieldset{
 		height:300px;
@@ -731,5 +803,14 @@ function printInitCSS(){
 		border:none;
 		color:transparent;
 		margin-left:4px;
+	}
+	.deleteButton{
+		background-color: transparent;
+		background-image: url(https://raw.github.com/scenari/cid/master/simpleCIDRep/icons/cancel.png);
+		background-repeat: no-repeat;
+		height:24px;
+		width:20px;
+		border:none;
+		color:transparent;
 	}";
 }
