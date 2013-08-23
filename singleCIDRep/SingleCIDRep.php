@@ -69,6 +69,25 @@ else{
 			
 			else{
 				switch ($_GET["cdaction"]){
+					case "control":
+						echo "<html><head><title>Control CID Rep</title><style>";
+						printBaseCSSRules();
+						echo "</style></head><body><h1>Control CID Rep</h1>";
+						
+						echo "<p>Writing permission of root directory: ";
+						if(is_writable(".")) echo "true, you should remove the writing permission of this folder</p>";
+						else echo "false</p>";
+						
+						echo "<p>Writing permission of upload directory: ";
+						if(!is_writable("SCR-Upload")) echo "false, you should set up the writing permission of this folder</p>";
+						else echo "true</p>";
+						
+						echo "<p>Maximum upload size: ";
+						echo ini_get("upload_max_filesize");
+						echo  "</p>";
+							
+						echo "</body></html>";	
+					break;
 					case "testAuth" :
 						if ($_SERVER['PHP_AUTH_USER']!= $fUser || $_SERVER['PHP_AUTH_PW'] != $fPassword)
 							header('WWW-Authenticate: Basic', false, 401);
@@ -82,69 +101,81 @@ else{
 					break;
 					
 					case "init" :
-						echo "<!DOCTYPE html PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN' 'http://www.w3.org/TR/html4/loose.dtd'>
-	<html>
-		<head>
-			<title>SingleCidRep Settings</title>
-			<style>
-				.ok{
-					background-color:#e5ffd5;
-				}
-				.error{
-					background-color:#f4d7d7;
-				}";
-				printBaseCSSRules();
-				echo "</style>
-		</head>
-		<body>
-			<h1>SingleCIDRep Settings</h1>
-			<form method='post' action='?cdaction=init'>
-				<script>
-					isCorrect = function(){
-					if(document.getElementById('user').value != new String() && document.getElementById('password').value == document.getElementById('confirmpassword').value && document.getElementById('password').value != new String())
-						document.getElementById('submit').disabled=false;
-					else
-						document.getElementById('submit').disabled=true;
-				}
-				</script>
-						
-				<label for='user' style=' float:left; width:180px'>Login: </label>
-				<input id='user' name='user' type='text' onchange=\"isCorrect(); if(this.value!= new String()) this.className='ok'; else this.className='error';\"/>
-				<br/>
-				<label for='password' style='float:left; width:180px'>Password:</label>
-				<input id='password' name='password' type='password' onchange=\"isCorrect();
-				/*on init*/
-				if(this.className == new String() && document.getElementById('confirmpassword').className == new String()){
-					if(this.value!= new String())	this.className='ok';
-					else this.className='error';
-				}
-				else{
-					if(this.value != document.getElementById('confirmpassword').value){
-						this.className='error';
-						document.getElementById('confirmpassword').className = 'error';
+						if(!is_writable(".")){
+							echo "<html><head><title>Error</title><style>";
+							printBaseCSSRules();
+							echo "</style></head><body><h1>Permission error</h1><p>SingleCidRep parent folder is not writable by the webserver. Please, change the directory permissions in order to process the installation script.</p></body></html>";
+						}
+						else if(file_exists("param.php")){
+							echo "<html><head><title>Error</title><style>";
+							printBaseCSSRules();
+							echo "</style></head><body><h1>Permission error</h1><p>A former param.php file exists on this server. Please, remove it and proceed again.</p></body></html>";		
+						}
+						else{
+							echo "<!DOCTYPE html PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN' 'http://www.w3.org/TR/html4/loose.dtd'>
+		<html>
+			<head>
+				<title>SingleCidRep Settings</title>
+				<style>
+					.ok{
+						background-color:#e5ffd5;
+					}
+					.error{
+						background-color:#f4d7d7;
+					}";
+					printBaseCSSRules();
+					echo "</style>
+			</head>
+			<body>
+				<h1>SingleCIDRep Settings</h1>
+				<form method='post' action='?cdaction=init'>
+					<script>
+						isCorrect = function(){
+						if(document.getElementById('user').value != new String() && document.getElementById('password').value == document.getElementById('confirmpassword').value && document.getElementById('password').value != new String())
+							document.getElementById('submit').disabled=false;
+						else
+							document.getElementById('submit').disabled=true;
+					}
+					</script>
+							
+					<label for='user' style=' float:left; width:180px'>Login: </label>
+					<input id='user' name='user' type='text' onchange=\"isCorrect(); if(this.value!= new String()) this.className='ok'; else this.className='error';\"/>
+					<br/>
+					<label for='password' style='float:left; width:180px'>Password:</label>
+					<input id='password' name='password' type='password' onchange=\"isCorrect();
+					/*on init*/
+					if(this.className == new String() && document.getElementById('confirmpassword').className == new String()){
+						if(this.value!= new String())	this.className='ok';
+						else this.className='error';
 					}
 					else{
-						this.className='ok';
-						document.getElementById('confirmpassword').className = 'ok';
+						if(this.value != document.getElementById('confirmpassword').value){
+							this.className='error';
+							document.getElementById('confirmpassword').className = 'error';
+						}
+						else{
+							this.className='ok';
+							document.getElementById('confirmpassword').className = 'ok';
+						}
 					}
-				}
-				\"/>
-				<br/>
-				<label for='confirmpassword' style='float:left; width:180px'>Confirm:</label>
-				<input id='confirmpassword' name='confirmpassword' type='password' onchange=\"isCorrect(); if(this.value!= new String() && this.value == document.getElementById('password').value){ this.className='ok'; document.getElementById('password').className = 'ok';} else {this.className='error';document.getElementById('password').className = 'error';}\"/>
-				<br/>
-				<label for='autodezip' style='float:left; width:180px' title='Check this box if you want to automatically dezip sended zipped package (such as Scenari websites and presentations).'>Auto-dezip:</label>
-				<input type='checkbox' name='autodezip' id='autodezip' title='Check this box if you want to automatically dezip sended zipped package (such as Scenari websites and presentations).'/>
-				<br/>
-				<label for='phpUpload' style='float:left; width:180px' title='Leave this box unchecked unless you need to send php files (security hole).'>Authorize php upload:</label>
-				<input type='checkbox' name='phpUpload' id='phpUpload' style='float:left;' title='Leave this box unchecked unless you need to send php files (security hole).'/>
-				<br/>
-				<input type='submit' id='submit' value='Initialize SingleCidRep' disabled='true' />
-			</form>
-			<p>PHP configuration: maximum upload size ".ini_get("upload_max_filesize").".</br>
-			You should define a maximum upload size higher than 10M.</p>
-		</body>
-	<html/>";
+					\"/>
+					<br/>
+					<label for='confirmpassword' style='float:left; width:180px'>Confirm:</label>
+					<input id='confirmpassword' name='confirmpassword' type='password' onchange=\"isCorrect(); if(this.value!= new String() && this.value == document.getElementById('password').value){ this.className='ok'; document.getElementById('password').className = 'ok';} else {this.className='error';document.getElementById('password').className = 'error';}\"/>
+					<br/>
+					<label for='autodezip' style='float:left; width:180px' title='Check this box if you want to automatically dezip sended zipped package (such as Scenari websites and presentations).'>Auto-dezip:</label>
+					<input type='checkbox' name='autodezip' id='autodezip' title='Check this box if you want to automatically dezip sended zipped package (such as Scenari websites and presentations).'/>
+					<br/>
+					<label for='phpUpload' style='float:left; width:180px' title='Leave this box unchecked unless you need to send php files (security hole).'>Authorize php upload:</label>
+					<input type='checkbox' name='phpUpload' id='phpUpload' style='float:left;' title='Leave this box unchecked unless you need to send php files (security hole).'/>
+					<br/>
+					<input type='submit' id='submit' value='Initialize SingleCidRep' disabled='true' />
+				</form>
+				<p>PHP configuration: maximum upload size ".ini_get("upload_max_filesize").".</br>
+				You should define a maximum upload size higher than 10M.</p>
+			</body>
+		<html/>";
+						}
 					break;
 
 					default:
@@ -164,6 +195,11 @@ else{
 						echo "<html><head><title>Error</title><style>";
 						printBaseCSSRules();
 						echo "</style></head><body><h1>Permission error</h1><p>SingleCidRep parent folder is not writable by the webserver. Please, change the directory permissions in order to process the installation script.</p></body></html>";
+					}
+					else if(file_exists("param.php")){
+						echo "<html><head><title>Error</title><style>";
+						printBaseCSSRules();
+						echo "</style></head><body><h1>Permission error</h1><p>A former param.php file exists on this server. Please, remove it and proceed again.</p></body></html>";
 					}
 					else{
 						try {
@@ -277,8 +313,6 @@ else{
 						exit;
 					}
 					$vPath = "SCR-Upload/".basename($vFilename);
-					echo $vFilename."\n";
-					echo $vPath;
 						
 					if(move_uploaded_file($_FILES["upload"]['tmp_name'],$vPath)){
 						if($fAutoDezip) unzip($vPath);
