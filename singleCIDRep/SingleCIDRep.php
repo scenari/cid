@@ -141,6 +141,8 @@ else{
 				<br/>
 				<input type='submit' id='submit' value='Initialize SingleCidRep' disabled='true' />
 			</form>
+			<p>PHP configuration: maximum upload size ".ini_get("upload_max_filesize").".</br>
+			You should define a maximum upload size higher than 10M.</p>
 		</body>
 	<html/>";
 					break;
@@ -214,13 +216,59 @@ else{
 						header('WWW-Authenticate: Basic', false, 401);
 						exit;
 					}
+					if(!is_writable("SCR-Upload")){
+						header("HTTP1/1 500 internal server error");
+						exit;
+					}
+					if($_FILES["upload"]["error"]){
+						switch ($_FILES["upload"]["error"]){
+							case 1:
+								echo "The uploaded file exceeds the upload_max_filesize directive in php.ini."; 
+								header("HTTP1/1 413 request entity too large", false, 413);
+							break;
+	
+							case 2:
+								echo "The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form. ";	
+								header("HTTP1/1 413 request entity too large", false, 413);
+							break;
+							
+							case 3:
+								echo "The uploaded file was only partially uploaded.";
+								header("HTTP1/1 415 unsupported media type", true, 415);
+							break;
+								
+							case 4:
+								echo "No file was uploaded.";
+								header("HTTP1/1 415 unsupported media type", true, 415);
+							break;
+							
+							case 6:
+								echo "Missing a temporary folder.";
+								header("HTTP1/1 500 internal server error");
+							break;
+							
+							case 7:
+								echo "Failed to write file to disk.";
+								header("HTTP1/1 500 internal server error");
+							break;
+							
+							case 8:
+								echo "A PHP extension stopped the file upload. PHP does not provide a way to ascertain which extension caused the file upload to stop; examining the list of loaded extensions with phpinfo() may help.";
+								header("HTTP1/1 500 internal server error");		
+							break;
+							
+							default:
+								echo "unknown error.";
+								header("HTTP1/1 418 i'm a teapot", true, 418);
+							break;
+						}
+						exit;
+					}
 					$vFilename = $_FILES["upload"]['name'];
-					
 					if($vFilename == "blob"){
 						$vContentDisposition = $_SERVER["HTTP_CONTENT_DISPOSITION"];
 						$vStart = strrpos($vContentDisposition, "filename=\"")+10;
 						$vSize = strlen($vContentDisposition) -1 - $vStart;
-						echo substr($vContentDisposition,$vStart , $vSize);
 						$vFilename = substr($vContentDisposition,$vStart , $vSize);
 					}
 					if(checkPhpUpload($vFilename)){
@@ -229,15 +277,17 @@ else{
 						exit;
 					}
 					$vPath = "SCR-Upload/".basename($vFilename);
+					echo $vFilename."\n";
+					echo $vPath;
+						
 					if(move_uploaded_file($_FILES["upload"]['tmp_name'],$vPath)){
-					
 						if($fAutoDezip) unzip($vPath);
 						header("Location:".$_SERVER["PHP_SELF"]."?cdaction=success", false, 201);
-							
+						
 					}
 					else{
 						//Assume that if the delivery failed. The content is not conform to the expected type.
-						header("HTTP1/1 415 unsupported media type");
+						header("HTTP1/1 415 unsupported media type", true, 415);
 					}
 				break;
 				
@@ -266,7 +316,7 @@ function unzip($pPath){
 		for($i = 0; $i < $vZip->numFiles; $i++) {
 			if(checkPhpUpload($vZip->getNameIndex($i))){
 				echo "Unable to dezip the archive. The uploaded archive contains php files.";
-				header("HTTP/1.1 403 forbidden");
+				header("HTTP/1.1 403 forbidden", true, 403);
 			}
 			$vArr[] = $vZip->getNameIndex($i);
 		}
@@ -279,7 +329,8 @@ function unzip($pPath){
 }
 
 function checkPhpUpload($pName){
-	return (!$fPhpUpload && (substr($pName, -3) === "php"));
+	include 'param.php';
+	return (!$fPhpUpload  && (substr($pName, -3) === "php"));
 }
 
 function printBaseCSSRules(){
