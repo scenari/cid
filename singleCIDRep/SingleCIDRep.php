@@ -49,21 +49,23 @@ else{
 		case 'GET':
 			if(!isset($_GET["cdaction"])){
 				echo "<?xml version='1.0' encoding='UTF-8'?>
-	<cid:cid xmlns:cid='http://www.kelis.fr/cid/v1/core'>
-		<cid:authentication>
-			<cid:basicHttp testUrl=\"".$_SERVER['PHP_SELF']."?cdaction=testAuth\"/>
-		</cid:authentication>
-		<cid:content>
-			<cid:simpleContent mymetype='*/*'/>	
-		</cid:content>
-		<cid:protocol>
-			<cid:singleHttpRequest method='POST'  multipartField='upload' url='".$_SERVER['PHP_SELF']."?cdaction=upload'>
-				<cid:negotiation>
-					<cid:frameweb/>
-				</cid:negotiation>
-			</cid:singleHttpRequest>
-		</cid:protocol>
-	</cid:cid>";
+			<cid:manifest xmlns:cid='http://www.kelis.fr/cid/v1/core'>
+		    <cid:authentication>
+		        <cid:basicHttp testUrl=\"".$_SERVER['PHP_SELF']."?cdaction=testAuth\"/>
+		    </cid:authentication>
+		    <cid:content>
+		        <cid:simpleContent mimeType='*'/>
+		    </cid:content>
+		    <cid:transport>
+		        <cid:singleHttpRequest url=\"".$_SERVER['PHP_SELF']."?cdaction=upload\">
+		            <cid:post multipartFileField='upload' multipartTypeField='contentType' multipartDispositionField='disposition'/>
+		            <cid:negociation>
+		                <cid:frameWeb/>
+		            </cid:negociation>
+		        </cid:singleHttpRequest>
+		    </cid:transport>
+		    <cid:otherManifest url='http://localhost/cid-misc/simpleCIDRep/SimpleCIDRep.php'/>
+		</cid:manifest>";
 			header("Content-Type:application/xml");
 			}
 			
@@ -97,7 +99,7 @@ else{
 					case "success" :
 						echo "<html><head><title>Success</title><style>";
 					printBaseCSSRules();
-					echo "</style></head><body><h1>Upload succed</h1><p>Your package was correctly uploaded on this SingleCidRep. Visit <a href='$vUploadPath'>$vUploadPath</a> to consult it.</p></body></html>";
+					echo "</style></head><body><h1>Upload succeed</h1><p>Your package was correctly uploaded on this SingleCidRep. Visit <a href='$vUploadPath'>$vUploadPath</a> to consult it.</p></body></html>";
 					break;
 					
 					case "init" :
@@ -223,7 +225,7 @@ else{
 							fwrite($vIndex, "?>");
 							fclose($vIndex);
 							
-							echo "<html><head><title>SingleCidRep installation succed</title><style>";
+							echo "<html><head><title>SingleCidRep installation succeed</title><style>";
 							printBaseCSSRules();
 							echo "</style></head><body><h1>Your SingleCIDRep is now ready</h1><p>You should now remove the writing permission of the SingleCidRep parent directory.</p>
 							<p>Your CID manifest URL is: <a href='$vManifest'>$vManifest</a>.</p>
@@ -302,10 +304,9 @@ else{
 					}
 					$vFilename = $_FILES["upload"]['name'];
 					if($vFilename == "blob"){
-						$vContentDisposition = $_SERVER["HTTP_CONTENT_DISPOSITION"];
-						$vStart = strrpos($vContentDisposition, "filename=\"")+10;
-						$vSize = strlen($vContentDisposition) -1 - $vStart;
-						$vFilename = substr($vContentDisposition,$vStart , $vSize);
+						$vContentDisposition = $_POST["disposition"];
+						$vStart = strrpos($vContentDisposition, "filename=")+9;
+						$vFilename = substr($vContentDisposition,$vStart);
 					}
 					if(checkPhpUpload($vFilename)){
 						echo "Impossible to upload php file.";

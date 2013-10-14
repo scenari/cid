@@ -44,21 +44,23 @@ else{
 		
 		if(!isset($_GET["cdaction"])){
 			echo "<?xml version='1.0' encoding='UTF-8'?>
-			<cid:cid xmlns:cid='http://www.kelis.fr/cid/v1/core'>
-				<cid:authentication>
-					<cid:basicHttp testURL=\"".$_SERVER['PHP_SELF']."?cdaction=testAuth\"/>
-			 	</cid:authentication>
-				<cid:content>
-					<cid:simpleContent mymetype='*/*'/>
-				</cid:content>
-				<cid:protocol>
-					<cid:singleHttpRequest method='POST' multipartField='upload' url=\"".$_SERVER['PHP_SELF']."?cdaction=upload\">
-						<cid:negotiation>
-							<cid:frameweb/>
-						</cid:negotiation>
-					</cid:singleHttpRequest>
-				</cid:protocol>
-			</cid:cid>";
+			<cid:manifest xmlns:cid='http://www.kelis.fr/cid/v1/core'>
+		    <cid:authentication>
+		        <cid:basicHttp testUrl=\"".$_SERVER['PHP_SELF']."?cdaction=testAuth\"/>
+		    </cid:authentication>
+		    <cid:content>
+		        <cid:simpleContent mimeType='*'/>
+		    </cid:content>
+		    <cid:transport>
+		        <cid:singleHttpRequest url=\"".$_SERVER['PHP_SELF']."?cdaction=upload\">
+		            <cid:post multipartFileField='upload' multipartTypeField='contentType' multipartDispositionField='disposition'/>
+		            <cid:negociation>
+		                <cid:frameWeb/>
+		            </cid:negociation>
+		        </cid:singleHttpRequest>
+		    </cid:transport>
+		    <cid:otherManifest url='http://localhost/cid-misc/singleCIDRep/SingleCIDRep.php'/>
+		</cid:manifest>";
 			header("Content-Type:application/xml");
 		}
 		
@@ -296,7 +298,6 @@ else{
 		switch ($_GET["cdaction"]){
 			//create new folder in upload space
 			case "newFolder":
-				echo "hello";
 				if(!mkdir($fLocalUploadsFolder.$_POST["newFolderName"], 0755))
 					header("HTTP1/1 500 internal server error");
 			break;
@@ -307,7 +308,7 @@ else{
 					header('WWW-Authenticate: Basic', false, 401);
 					exit;
 				} else {
-					if(!is_writable("SCR-Upload")){
+					if(!is_writable($fTempFolder)){
 						header("HTTP1/1 500 internal server error");
 						exit;
 					}
@@ -356,23 +357,18 @@ else{
 						exit;
 					}
 					$vFilename = $_FILES["upload"]['name'];
-						
 					if($vFilename == "blob"){
-						$vCcontentDisposition = $_SERVER["HTTP_CONTENT_DISPOSITION"];
-						$vStart = strrpos($vCcontentDisposition, "filename=\"")+10;
-						$vSize = strlen($vCcontentDisposition) -1 - $vStart;
-						echo substr($vCcontentDisposition,$vStart , $vSize);
-						$vFilename = substr($vCcontentDisposition,$vStart , $vSize);
+						$vContentDisposition = $_POST["disposition"];
+						$vStart = strrpos($vContentDisposition, "filename=")+9;
+						$vFilename = substr($vContentDisposition,$vStart);
 					}
-				
 					$vPath = $fTempFolder.$vFilename;
-					
+					echo $vPath;
 					if(checkPhpUpload($vFilename)){
 						echo "Impossible to upload php file.";
 						header("HTTP/1.1 403 forbidden");
 						exit;
 					}
-					
 					if(move_uploaded_file($_FILES["upload"]['tmp_name'],$vPath))
 						header("Location:".$_SERVER['PHP_SELF']."?cdaction=negociationFrame&uploadedFile=".$vFilename, false, 202);
 					else header("HTTP1/1 415 unsupported media type");
@@ -385,12 +381,12 @@ else{
 					unzip($fTempFolder.$_POST['uploadedFile'], $fLocalUploadsFolder.substr($_POST["sendedLocation"], 1));
 					echo "<html><head><title>Success</title><style>";
 					printBaseCSSRules();
-					echo "</style></head><body><h1>Upload succed</h1><p>Your package was correctly uploaded and dezipped on this SimpleCIDRep. Visit <a href='".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."'>".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."</a> to consult it.</p></body></html>";
+					echo "</style></head><body><h1>Upload succeed</h1><p>Your package was correctly uploaded and dezipped on this SimpleCIDRep. Visit <a href='".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."'>".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."</a> to consult it.</p></body></html>";
 									}
 				elseif(rename ( $fTempFolder.$_POST['uploadedFile'], $fLocalUploadsFolder.substr($_POST["sendedLocation"], 1).$_POST['pathInput'] )){
 					echo "<html><head><title>Success</title><style>";
 					printBaseCSSRules();
-					echo "</style></head><body><h1>Upload succed</h1><p>Your package was correctly uploaded on this SimpleCIDRep. Visit <a href='".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."'>".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."</a> to consult it.</p></body></html>";
+					echo "</style></head><body><h1>Upload succeed</h1><p>Your package was correctly uploaded on this SimpleCIDRep. Visit <a href='".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."'>".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."</a> to consult it.</p></body></html>";
 						
 				}
 				else{
@@ -453,7 +449,7 @@ else{
 						$vScriptname=end(explode('/',$_SERVER['PHP_SELF']));
 						$vUploadPath = str_replace("/".$vScriptname,'',$vManifest);
 						
-						echo "<html><head><title>SimpleCidRep installation succed</title><style>";
+						echo "<html><head><title>SimpleCidRep installation succeed</title><style>";
 						printBaseCSSRules();
 						echo "</style></head><body><h1>Your SimpleCIDRep is now ready</h1><p>You should now remove the writing permission of the SimpleCidRep parent directory.</p>
 						<p>Your CID manifest URL is: <a href='$vManifest'>$vManifest</a>.</p>
@@ -584,7 +580,7 @@ fileSelector = {
 		
 			fileSelector.unloadContener();
 			//get the contener node
-			var vContener = document.getElementById('fileSelector');
+			var vFileExplorer = document.getElementById('fileSelector');
 			//rebuild current Path and build subTable
 			var vPath = '/';
 			var vCurrent = fs;
@@ -601,7 +597,6 @@ fileSelector = {
 
 			document.getElementById('path').firstChild.nodeValue = vPath;
 					
-			var vFileExplorer = document.getElementById('fileSelector');
 			
 			if(vSubFolder){
 				var vParentFolder = document.createElement('li');
@@ -630,9 +625,7 @@ fileSelector = {
 		
 				}
 				vFileExplorer.appendChild(entry);
-			}
-			vContener.appendChild(vFileExplorer);
-		
+			}		
 		
 	},
 	
