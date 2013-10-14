@@ -59,7 +59,6 @@ else{
 		            </cid:negociation>
 		        </cid:singleHttpRequest>
 		    </cid:transport>
-		    <cid:otherManifest url='http://localhost/cid-misc/singleCIDRep/SingleCIDRep.php'/>
 		</cid:manifest>";
 			header("Content-Type:application/xml");
 		}

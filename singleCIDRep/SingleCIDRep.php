@@ -55,6 +55,7 @@ else{
 		    </cid:authentication>
 		    <cid:content>
 		        <cid:simpleContent mimeType='*'/>
+		       	<cid:scorm version='1.2' useContentType='zip/application'/>
 		    </cid:content>
 		    <cid:transport>
 		        <cid:singleHttpRequest url=\"".$_SERVER['PHP_SELF']."?cdaction=upload\">
@@ -64,7 +65,6 @@ else{
 		            </cid:negociation>
 		        </cid:singleHttpRequest>
 		    </cid:transport>
-		    <cid:otherManifest url='http://localhost/cid-misc/simpleCIDRep/SimpleCIDRep.php'/>
 		</cid:manifest>";
 			header("Content-Type:application/xml");
 			}
