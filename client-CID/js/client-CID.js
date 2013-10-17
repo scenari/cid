@@ -49,10 +49,6 @@ var cidLib = {
 					if(vXhr.readyState === 4 && vXhr.status === 200) return true;
 					else return false;
 				}
-				
-				
-				
-				
 				this.fTestUrl = pNode.getAttribute("testUrl");
 			}
 		};
@@ -66,11 +62,14 @@ var cidLib = {
 	//Protocols
 	singleHttpRequest : function(pNegociation){
 		this.fXhr = clientCID.getHttpRequest();
-		this.fFd = new FormData();
+		this.fToSend ;
 		this.fNegociation = pNegociation;
-		this.fUrl;
-		this.fMultipartField;
-		this.fMethod;
+		this.fUrl = null;
+		this.fMethod = null;
+		this.fFileField = null;
+		this.fTypeField = null;
+		this.fDisposistionField = null;
+		this.fNode = null;
 	}
 
 
@@ -90,11 +89,7 @@ cidLib.singleHttpRequest.prototype.init = function(pNode){
 		else
 			this.fUrl = "http//"+this.fUrl;
 	}
-	
-	this.fMultipartField = this.fNode.getAttribute("multipartField");
-	
-	this.fMethod = this.fNode.getAttribute("method");
-	
+			
 	this.fXhr.onuploadprogress = function(evt){
 		var vPercentComplete = (evt.loaded/ evt.total)*100;
 		if(vPercentComplete != 100 && document.getElementById("progress").style.display == "none"){
@@ -110,6 +105,18 @@ cidLib.singleHttpRequest.prototype.init = function(pNode){
 	    	document.getElementById("progress").style.display="none";
 	    	document.getElementById("progressLabel").style.display="none";
 	}
+	for (var i = 0; i < this.fNode.childNodes.length; i++) {
+		if (this.fNode.childNodes[i].nodeType == 1 && this.fNode.childNodes[i].namespaceURI == "http://www.kelis.fr/cid/v1/core"
+				&& (this.fNode.childNodes[i].localName == "post" || this.fNode.childNodes[i].localName == "put")) {
+			this.fMethod = this.fNode.childNodes[i].localName;
+			if (this.fMethod == "post") {
+				this.fFileField = this.fNode.childNodes[i].getAttribute("multipartFileField");
+				this.fTypeField = this.fNode.childNodes[i].getAttribute("multipartTypeField");
+				this.fDisposistionField = this.fNode.childNodes[i].getAttribute("multipartDispositionField");
+			}
+		}
+	}
+		
 	this.fXhr.open(this.fMethod, this.fUrl);
 	
 	document.getElementById("pushButton").setAttribute("onClick","clientCID.publish();");	
@@ -122,16 +129,16 @@ cidLib.singleHttpRequest.prototype.init = function(pNode){
 				if(this.readyState === 4){
 					if(this.status < 200 || this.status >= 300){
 						window.alert("Error during package sending "+this.status);
-						document.fProtocol.init();
+						document.fTransport.init();
 					}
 					else{
 						var vUrlCheck = /^http:\/\/.*/;
 						var vUrl = this.getResponseHeader("Location");
 						if(!vUrlCheck.test(vUrl)){
 							if(vUrl.charAt(0)=='/')
-								vUrl = "http://"+document.fProtocol.fUrl.split("/")[2] + vUrl;
+								vUrl = "http://"+document.fTransport.fUrl.split("/")[2] + vUrl;
 							else if(vUrl.charAt(0)=='.'){
-								vLastUrl = document.fProtocol.fUrl.split("/");
+								vLastUrl = document.fTransport.fUrl.split("/");
 								vBaseUrl = "http://";
 								for (var i = 2; i < vLastUrl.length -1; i++) {
 									vBaseUrl += vLastUrl[i]+"/";
@@ -171,8 +178,33 @@ cidLib.singleHttpRequest.prototype.publish = function(pAuth){
 		case "none" :
 			break;
 	}
-	this.fFd.append(this.fMultipartField, document.getElementById("file").files[0]);
-	this.fXhr.send(this.fFd);
+	this.fXhr.send(this.fToSend);
+}
+
+
+cidLib.singleHttpRequest.prototype.loadFile = function(pFile){
+	var vSimpleContents = clientCID.fManifest.getElementsByTagNameNS(clientCID.fNamespace, "simpleContent");
+	var vContentType ;
+	for (var i = 0; i < vSimpleContents.length; i++) {
+		if(vSimpleContents[i].getAttribute("mimeType") == "*") vContentType = clientCID.makeContentType(vSimpleContents[i]);
+		if(vSimpleContents[i].getAttribute("mimeType") == pFile.type ) {clientCID.makeContentType(vSimpleContents[i]); break;}
+	}
+	
+
+	switch(this.fMethod){
+		case "put":
+			this.fToSend = pFile;
+			this.fXhr.setRequestHeader("Content-Type", vContentType);
+			this.fXhr.setRequestHeader("attachment;filename="+pFile.name);
+		break;
+		
+		case "post":
+		this.fToSend = new FormData();
+			this.fToSend.append(this.fMultipartTypeField, vContentType);
+			this.fToSend.append(this.fDisposistionField, "attachment;filename="+pFile.name);
+			this.fToSend.append(this.fFileField, pFile);
+		break;
+	}
 }
 
 
@@ -183,54 +215,89 @@ var clientCID = {
 	
 	fNamespace : {},
 	
+	fComputedManifests : new Array(),
+	
 	fSupportedAuths : [{fName : "basicHttp", fAuth : function(){return new cidLib.basicHttpAuth()}}],
 	
-	fSupportedProtocols : [{fName : "singleHttpRequest", fProtocol : function(){return new cidLib.singleHttpRequest("frameweb");}}],
+	fSupportedTransports : [{fName : "singleHttpRequest", fTransport : function(){return new cidLib.singleHttpRequest("frameweb");}}],
 	
 	getManifest : function(){
 		var vXhr = clientCID.getHttpRequest();		
+			
 		vXhr.onreadystatechange = function() {
-			if(vXhr.readyState === 4 ){
-
-				if(vXhr.responseXML && vXhr.status === 200){
+			if (vXhr.readyState === 4) {
+				if (vXhr.responseXML && vXhr.status === 200) {
 					clientCID.fManifest = vXhr.responseXML;
-					clientCID.fNamespace = clientCID.fManifest.firstChild.getAttribute("xmlns:cid");
-					var vFoundAuth;
-					var vFoundProtocol;
-					//Auth choice
-					//For each supported auth
+					for (var i = 0; i < clientCID.fManifest.childNodes.length; i++) {
+						if(clientCID.fManifest.childNodes[i].nodeType == 1){
+							clientCID.fNamespace = clientCID.fManifest.childNodes[i].namespaceURI;
+							break;
+						}
+					}
+					var vFoundAuth = false;
+					var vFoundTransport = false;
+					var vFoundContent = false;
+
+					// Auth choice
+					// For each supported auth
 					for (var i = 0; i < clientCID.fSupportedAuths.length; i++) {
-						//if this auth is supported by the server
+						// if this auth is supported by the server
 						var vAuthName = clientCID.fSupportedAuths[i].fName;
 						var vAuthNodes = clientCID.fManifest.getElementsByTagNameNS(clientCID.fNamespace,vAuthName);
-						if(vAuthNodes.length != 0){
-							//init Auth
+						if (vAuthNodes.length > 0) {
+							// init Auth
 							document.fAuth = clientCID.fSupportedAuths[i].fAuth();
 							document.fAuth.init(vAuthNodes[0]);
 							vFoundAuth = true;
 							break;
 						}
 					}
-					if(!vFoundAuth){
-						window.alert("No auth found : "+document.document.getElementById("manifestURL").value+" is not yet supported by this client.");
-						return;
-					}
-					//Procol choice
-					//For each couple protocol/negociation
-					for(var i = 0 ; i < clientCID.fSupportedProtocols.length ; i++){
-						if(vFoundProtocol) break;
-						var vProtocols = clientCID.fManifest.getElementsByTagNameNS(clientCID.fNamespace,clientCID.fSupportedProtocols[i].fName);
-						for (var j = 0; j < vProtocols.length; j++) {
-							if(vProtocols[j].getElementsByTagNameNS(clientCID.fNamespace,clientCID.fSupportedProtocols[i].fProtocol.fNegociation)){
-								document.fProtocol = clientCID.fSupportedProtocols[i].fProtocol();
-								document.fProtocol.init(vProtocols[j]);
-								vFoundProtocol = true;
-								break;
-							}
+					// transport choice
+					// For each couple transport/negociation
+					for (var i = 0; i < clientCID.fSupportedTransports.length; i++) {
+						var vTransports = clientCID.fManifest.getElementsByTagNameNS(clientCID.fNamespace,clientCID.fSupportedTransports[i].fName);
+						if(vTransports.length > 0){
+							document.fTransport = clientCID.fSupportedTransports[i].fTransport();
+							document.fTransport.init(vTransports[0]);
+							vFoundTransport = true;
+							break;
 						}
 					}
-					if(!vFoundProtocol){
-						window.alert("No protocol found :"+document.document.getElementById("manifestURL").value+" is not yet supported by this client.");
+					// check content compatibility			
+					if(clientCID.fManifest.getElementsByTagNameNS(clientCID.fNamespace,"simpleContent").length != 0){
+						vFoundContent = true;
+					}
+					
+					
+					//	document.fContentType = clientCID.makeContentType(vSelectedContent.fContentNode) ;
+					//  if(vFoundContent && vFoundTransport) document.fTransport.setContentType(document.fContentType);
+
+
+					if(!vFoundAuth || !vFoundContent || !vFoundTransport){
+						var vMessage = "Content deployment failed. The repository settings are not supported by this client.";
+						var vOtherManifests = clientCID.fManifest.getElementsByTagNameNS(clientCID.fNamespace,"otherManifest");
+						var vFoundOtherManifest = false;
+						for (var i = 0; i < vOtherManifests.length; i++) {
+							vFoundOtherManifest = true;
+							for (var j = 0; j < clientCID.fComputedManifests.length; j++) {
+								var vOtherManifest = vOtherManifests[i].getAttribute("url");
+								if(vOtherManifest == clientCID.fComputedManifests[j]){
+									vFoundOtherManifest = false;
+								}
+							}
+							if(vFoundOtherManifest) break;
+						}
+						//Dans le cas où aucun autre manifeste a été trouvé...
+						if(!vFoundOtherManifest){
+							document.alert(vMessage);
+						}
+						else{
+							vMessage += "\n";
+							vMessage += "An other manifest is suggested by the repository. Do you want to try again with it?";
+							if(document.confirm(vMessage)){
+								clientCID.getManifest(vOtherManifest);
+							}
+						}
 						return;
 					}
 				}
@@ -248,11 +315,20 @@ var clientCID = {
 		vXhr.send();
 	},
 	
-	publish : function(){
-		//if(document.fAuth.checkAuth && document.fAuth.checkAuth(document.fProtocol.fMethod) || !document.fAuth.checkAuth)
-			document.fProtocol.publish(document.fAuth);
-		//else
-		//	window.alert("Authentication error.")
+	publish : function(){			
+		document.fTransport.loadFile(document.getElementById("file").files[0]);
+		document.fTransport.publish(document.fAuth);
+	},
+	
+	makeContentType : function(pNode) {
+		if (pNode.hasAttribute("useContentType")) return pNode.getAttribute("useContentType");
+		else {
+			var vContentType = document.fFileMimeType + ";" + pNode.localName;
+			for (var i = 0; i < pNode.attributes.length; i++) {
+				vContentType += ";" + pNode.attributes[i].name + "=\"" + pNode.attributes[i].value + "\"";
+			}
+			return vContentType;
+		}
 	},
 	
 	getHttpRequest : function() {
