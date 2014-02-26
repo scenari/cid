@@ -33,389 +33,51 @@
  * terms of any one of the MPL, the GPL, the LGPL or the CeCILL. ]]LICENCE
  */
 
+$vManifest = "http";
+if(isset($_SERVER['HTTPS'])) $vManifest .= "s";
+$vManifest .= "://".$_SERVER['HTTP_HOST'].$_SERVER['PHP_SELF'];
+$vScriptname=end(explode('/',$_SERVER['PHP_SELF']));
+$vUploadPath = str_replace("/".$vScriptname,'',$vManifest);
 
 if(!file_exists("param.php") && $_GET["cdaction"] != "init"){
 	header("Location: ".$_SERVER["PHP_SELF"]."?cdaction=init");
 }
 else{
-	include 'param.php';
-	switch ($_SERVER['REQUEST_METHOD']) {
-	case 'GET':
-		
-		if(!isset($_GET["cdaction"])){
-			echo "<?xml version='1.0' encoding='UTF-8'?>
-			<cid:manifest xmlns:cid='http://www.kelis.fr/cid/v1/core'>
-		    <cid:authentication>
-		        <cid:basicHttp testUrl=\"".$_SERVER['PHP_SELF']."?cdaction=testAuth\"/>
-		    </cid:authentication>
-		    <cid:content>
-		        <cid:simpleContent mimeType='*'/>
-		    </cid:content>
-		    <cid:transport>
-		        <cid:singleHttpRequest url=\"".$_SERVER['PHP_SELF']."?cdaction=upload\">
-		            <cid:post multipartFileField='upload' multipartTypeField='contentType' multipartDispositionField='disposition'/>
-		            <cid:negociation>
-		                <cid:frameWeb/>
-		            </cid:negociation>
-		        </cid:singleHttpRequest>
-		    </cid:transport>
-		</cid:manifest>";
-			header("Content-Type:application/xml");
-		}
-		
-		else{
-			switch ($_GET["cdaction"]){
-				case "control":
-					echo "<html><head><title>Control CID Rep</title><style>";
-					printBaseCSSRules();
-					echo "</style></head><body><h1>Control CID Rep</h1>";
-				
-					echo "<p>Writing permission of root directory: ";
-					if(is_writable(".")) echo "true, you should remove the writing permission of this folder</p>";
-					else echo "false</p>";
-				
-					echo "<p>Writing permission of upload directory: ";
-					if(!is_writable($fLocalUploadsFolder)) echo "false, you should set up the writing permission of this folder</p>";
-					else echo "true</p>";
-					
-					echo "<p>Writing permission of tmp directory: ";
-					if(!is_writable($fTempFolder)) echo "false, you should set up the writing permission of this folder</p>";
-					else echo "true</p>";
-				
-					echo "<p>Maximum upload size: ";
-					echo ini_get("upload_max_filesize");
-					echo  "</p>";
-						
-					echo "</body></html>";
-					break;
-				case "negociationFrame":
-					if ((array_key_exists($_SERVER['PHP_AUTH_USER'], $fUsers ) == null || $fUsers[$_SERVER['PHP_AUTH_USER']]!=$_SERVER['PHP_AUTH_PW'])){
-					 header('WWW-Authenticate: Basic', false, 401);
-					exit;
-					} else {
-						if(file_exists($fTempFolder.$_GET["uploadedFile"])){						
-							echo "<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN' 'http://www.w3.org/TR/html4/loose.dtd'>
-							<html>
-							<head>
-							<script>";
-							printFileSectorJs();
-							echo "fs=";
-							getUploadFs($fLocalUploadsFolder);
-							echo "</script>
-							<style>";
-							printBaseCSSRules();
-							printFileSelectorCSS();
-							echo "</style>
-							</head>
-							<title>File selector</title>
-							<body>";
-							echo "<h1>Choose the final file destination</h1>
-									<form  enctype='multipart/form-data' action='".$_SERVER['PHP_SELF']."?cdaction=finalizeUpload' method='post'>
-									<p>Uploaded file: ".$_GET["uploadedFile"]."</p>
-									<input id='uploadedFile' class='hidden' name='uploadedFile'  type='text' value='".$_GET["uploadedFile"]."'/>
-									<input id='sendedLocation' name='sendedLocation' class='hidden' type='text'/>
-							
-										<fieldset>
-											<legend>Choix de l'URL d'upload</legend>
-											<div id='toolbar'>
-												<input type='button'  value='home' alt='home button' class='toolboxCommand' id='home'  onclick='fileSelector.loadContener(new Array());'/>
-												<label class='toolboxCommand'>Location: </label>
-												<input type='text'  class='toolboxCommand' id='location' disabled='true'  />
-												<input type='button' value='new folder' alt='new folder button'  class='toolboxCommand' id='newFolder' onclick='fileSelector.newFolder();'/>
-											</div>
-											<ul id='fileSelector'/>
-										</fieldset>
-										<label for='pathInput' id='pathInputLabel'>Final path: </label>
-										<span id='path'/>
-										<input id='pathInput' this.class='ok' name='pathInput' type='text' value='".$_GET["uploadedFile"]."'onkeyup='fileSelector.updateInputState();' />
-										<input id='finalizeUpload' type='submit'  value='send'/></br>";
-										$finfo = finfo_open(FILEINFO_MIME_TYPE);
-							if(finfo_file($finfo, $fTempFolder.$_GET["uploadedFile"])=="application/zip")
-								echo "<label for='autoDezip'>AutoDezip: </label><input type='checkbox' id='autoDezip' name='autoDezip' onclick='fileSelector.checkAutoDezip()'/>
-										</form>
-										<script>fileSelector.loadContener(new Array());</script>
-										</body>
-										</html>";
-						}
-						else{
-							echo "<html><head><title>Error</title><style>";
-							printBaseCSSRules();
-							echo "</style></head><body><h1>Error</h1><p>There is no file named ".$_GET["uploadedFile"]." in tmp directory.</p></body></html>";
-						}
-					}
-				break;
-				
-				case "init":
-					if(!is_writable(".")){
-						echo "<html><head><title>Error</title><style>";
-						printBaseCSSRules();
-						echo "</style></head><body><h1>Permission error</h1><p>SingleCidRep parent folder is not writable by the webserver. Please, change the directory permissions in order to process the installation script.</p></body></html>";
-					}
-					else if(file_exists("param.php")){
-						echo "<html><head><title>Error</title><style>";
-						printBaseCSSRules();
-						echo "</style></head><body><h1>Permission error</h1><p>A former param.php file exists on this server. Please, remove it and proceed again.</p></body></html>";
-					}
-					else{
-					echo "<!DOCTYPE html PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN' 'http://www.w3.org/TR/html4/loose.dtd'>
-						<html>
-							<head>
-								<title>SimpleCidRep Settings</title>
-								<style>";
-					printInitCSS();
-					printBaseCSSRules();
-					echo "		</style>
-								<script>
-										fUsers = 1;
-								
-										isCorrect = function(){
-										var vCorrect = (document.getElementById('uploadDir').value != new String()) && (document.getElementById('tmpDir').value != new String())
-										vCorrect = vCorrect && document.getElementById('uploadDir').value != document.getElementById('tmpDir').value;
-										var vHTMLUsers = document.getElementById('users');
-										for(var i = 1 ; i < vHTMLUsers.children.length ; i++){
-											vCorrect = vCorrect && vHTMLUsers.children[i].children[0].children[0].value != new String();
-											vCorrect = vCorrect && vHTMLUsers.children[i].children[1].children[0].value != new String();
-											vCorrect = vCorrect && vHTMLUsers.children[i].children[1].children[0].value == vHTMLUsers.children[i].children[2].children[0].value;
-										}
-							
-										if(vCorrect)
-											document.getElementById('submit').disabled=false;
-										else
-											document.getElementById('submit').disabled=true;
-										}
-										checkName = function(pString){return pString.match(/[\w._~&-]+/) && pString.match(/[\w._~&-]+/)[0]=== pString;}
-										
-										newUser = function(){
-										
-										var vTdLogin = document.createElement('td');
-										var vLogin = document.createElement('input');
-										vLogin.setAttribute('name','user['+fUsers+'][login]');
-										vLogin.setAttribute('id', 'user'+fUsers+'login');
-										vLogin.setAttribute('type','text');
-										vLogin.onchange = function(){isCorrect(); if(this.value!= new String()) this.className='ok'; else this.className='error';}
-										vTdLogin.appendChild(vLogin);			
-							
-										var vTdPassword = document.createElement('td');
-										var vPassword = document.createElement('input');
-										vPassword.setAttribute('name','user['+fUsers+'][password]');
-										vPassword.setAttribute('id', 'user'+fUsers+'password');
-										vPassword.setAttribute('type','password');
-										vPassword.setAttribute('onchange', \"";
-										printPasswordCheck("\"+fUsers+\"");
-										echo"\");
-										vTdPassword.appendChild(vPassword);
+	if(file_exists("param.php"))
+		include 'param.php';
 
-										var vTdPasswordConfirm = document.createElement('td');
-										var vPasswordConfirm = document.createElement('input');
-										vPasswordConfirm.setAttribute('id', 'user'+fUsers+'confirm');
-										vPasswordConfirm.setAttribute('type','password');
-										vPasswordConfirm.setAttribute('onchange', \"";
-										printConfirmCheck("\"+fUsers+\"");
-										echo "\");
-										vTdPasswordConfirm.appendChild(vPasswordConfirm);
-							
-										var vTdDelete = document.createElement('td');
-										var vDelete = document.createElement('input');
-										vDelete.setAttribute('type', 'button');
-										vDelete.className='deleteButton';
-										vDelete.setAttribute('value', 'delete');
-										vDelete.onclick = function(){this.parentNode.parentNode.parentNode.removeChild(this.parentNode.parentNode);}
-										vTdDelete.appendChild(vDelete);
-							
-										var vTr = document.createElement('tr');
-										vTr.appendChild(vTdLogin);
-										vTr.appendChild(vTdPassword);
-										vTr.appendChild(vTdPasswordConfirm);
-										vTr.appendChild(vTdDelete);
-							
-										fUsers++;
-										
-										document.getElementById('users').appendChild(vTr);
-										isCorrect();
-									}
-							
-									</script>
-							</head>
-							<body>
-								<h1>SimpleCIDRep Settings</h1>
-								<form method='post' action='?cdaction=init'>
-									
-									<label for='uploadDir' style=' float:left; width:180px'>Upload directory: </label>
-									<input id='uploadDir'class='ok' name='uploadDir' type='text' value='uploads' onchange=\"isCorrect(); if(checkName(this.value) && this.value!=document.getElementById('tmpDir').value) this.className='ok'; else this.className='error';\"/>
-									<br/>		
-									<label for='tmpDir' style=' float:left; width:180px'>Tmp directory: </label>
-									<input id='tmpDir' class='ok' name='tmpDir' type='text' value='tmp' onchange=\"isCorrect(); if(checkName(this.value)&& this.value!=document.getElementById('uploadDir').value) this.className='ok'; else this.className='error';\"/>
-									<br/>		
-									
-									<label>Users:</label>
-									<table >
-									  <tbody id='users'>
-									  <tr>
-									    <td>Login</td>
-									    <td>Password</td>
-										<td>Confirm password</td>
-									  </tr>
-									  <tr>
-									    <td>
-											<input id='user0login' name='user[0][login]' type='text' onchange=\"isCorrect(); if(this.value!= new String()) this.className='ok'; else this.className='error';\"/>
-										</td>
-										<td>
-											<input id='user0password' name='user[0][password]' type='password' onchange=\"";
-											printPasswordCheck(0);
-											echo "\"/>
-										</td>
-										<td>
-											<input id='user0confirm' type='password' onchange=\"";
-											printConfirmCheck(0);
-											echo "\"/>
-										</td>
-									  </tr>
-									</tbody>
-									</table>
-									<input type='button' id='addUser' value='add user' alt='add user button' onclick='newUser();'/>
-									<br/>
-									<label for='phpUpload' style='float:left; width:180px' title='Leave this box unchecked unless you need to send php files (security hole).'>Authorize php upload:</label>
-									<input type='checkbox' name='phpUpload' id='phpUpload' style='float:left;' title='Leave this box unchecked unless you need to send php files (security hole).'/>
-									<br/>
-									<input type='submit' id='submit' value='Initialize SimpleCidRep' disabled='true' />
-								</form>
-							</body>
-						<html/>";
-					}
-				break;
-				
-				default:
-					echo "<html><head><title>Error</title><style>";
-					printBaseCSSRules();
-					echo "</style></head><body><h1>Error : file not found</h1><p>The cdaction ".$_GET["cdaction"]." is not used.</p></body></html>";
-					header("HTTP/1.0 404 Not Found");
-				break;
+	switch ($_GET["cdaction"]){
+
+		case null:
+			printManifest();
+			header("Content-Type:application/xml");
+			break;
+
+		case "control" :
+			printControlPage();
+			break;
+
+		case "testAuth":
+			if ((array_key_exists($_SERVER['PHP_AUTH_USER'], $fUsers ) == null || $fUsers[$_SERVER['PHP_AUTH_USER']]!=$_SERVER['PHP_AUTH_PW'])){
+				header('WWW-Authenticate: Basic', false, 401);
+				exit;
 			}
-		}
-	break;
-	case 'POST':
-		switch ($_GET["cdaction"]){
-			//create new folder in upload space
-			case "newFolder":
-				if(!mkdir($fLocalUploadsFolder.$_POST["newFolderName"], 0755))
-					header("HTTP1/1 500 internal server error");
 			break;
-			
-			//upload package
-			case "upload":
-				if ((array_key_exists($_SERVER['PHP_AUTH_USER'], $fUsers ) == null || $fUsers[$_SERVER['PHP_AUTH_USER']]!=$_SERVER['PHP_AUTH_PW'])){
-					header('WWW-Authenticate: Basic', false, 401);
-					exit;
-				} else {
-					if(!is_writable($fTempFolder)){
-						header("HTTP1/1 500 internal server error");
-						exit;
-					}
-					if($_FILES["upload"]["error"]){
-						switch ($_FILES["upload"]["error"]){
-							case 1:
-								echo "The uploaded file exceeds the upload_max_filesize directive in php.ini.";
-								header("HTTP1/1 413 request entity too large", false, 413);
-								break;
-					
-							case 2:
-								echo "The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form. ";
-								header("HTTP1/1 413 request entity too large", false, 413);
-								break;
-									
-							case 3:
-								echo "The uploaded file was only partially uploaded.";
-								header("HTTP1/1 415 unsupported media type", true, 415);
-								break;
-					
-							case 4:
-								echo "No file was uploaded.";
-								header("HTTP1/1 415 unsupported media type", true, 415);
-								break;
-									
-							case 6:
-								echo "Missing a temporary folder.";
-								header("HTTP1/1 500 internal server error");
-								break;
-									
-							case 7:
-								echo "Failed to write file to disk.";
-								header("HTTP1/1 500 internal server error");
-								break;
-									
-							case 8:
-								echo "A PHP extension stopped the file upload. PHP does not provide a way to ascertain which extension caused the file upload to stop; examining the list of loaded extensions with phpinfo() may help.";
-								header("HTTP1/1 500 internal server error");
-								break;
-									
-							default:
-								echo "unknown error.";
-								header("HTTP1/1 418 i'm a teapot", true, 418);
-								break;
-						}
-						exit;
-					}
-					$vFilename = $_FILES["upload"]['name'];
-					if($vFilename == "blob"){
-						$vContentDisposition = $_POST["disposition"];
-						$vStart = strrpos($vContentDisposition, "filename=")+9;
-						$vFilename = substr($vContentDisposition,$vStart);
-					}
-					$vPath = $fTempFolder.$vFilename;
-					echo $vPath;
-					if(checkPhpUpload($vFilename)){
-						echo "Impossible to upload php file.";
-						header("HTTP/1.1 403 forbidden");
-						exit;
-					}
-					if(move_uploaded_file($_FILES["upload"]['tmp_name'],$vPath))
-						header("Location:".$_SERVER['PHP_SELF']."?cdaction=negociationFrame&uploadedFile=".$vFilename, false, 202);
-					else header("HTTP1/1 415 unsupported media type");
-				}
+
+		case "success" :
+			printSuccessPage($vUploadPath);
 			break;
-			
-			//move/dezip package in upload space
-			case "finalizeUpload":
-				if(isset($_POST["autoDezip"])){					
-					unzip($fTempFolder.$_POST['uploadedFile'], $fLocalUploadsFolder.substr($_POST["sendedLocation"], 1));
-					echo "<html><head><title>Success</title><style>";
-					printBaseCSSRules();
-					echo "</style></head><body><h1>Upload succeed</h1><p>Your package was correctly uploaded and dezipped on this SimpleCIDRep. Visit <a href='".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."'>".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."</a> to consult it.</p></body></html>";
-									}
-				elseif(rename ( $fTempFolder.$_POST['uploadedFile'], $fLocalUploadsFolder.substr($_POST["sendedLocation"], 1).$_POST['pathInput'] )){
-					echo "<html><head><title>Success</title><style>";
-					printBaseCSSRules();
-					echo "</style></head><body><h1>Upload succeed</h1><p>Your package was correctly uploaded on this SimpleCIDRep. Visit <a href='".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."'>".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."</a> to consult it.</p></body></html>";
-						
-				}
-				else{
-					echo "<html><head><title>Error</title><style>";
-					printBaseCSSRules();
-					echo "</style></head><body><h1>Upload error</h1><p>Error during the finalization of the upload.</p></body></html>";
-				}
-			break;
-			
-			//auth ckecking.
-			case "testAuth":
-				if ((array_key_exists($_SERVER['PHP_AUTH_USER'], $fUsers ) == null || $fUsers[$_SERVER['PHP_AUTH_USER']]!=$_SERVER['PHP_AUTH_PW'])){
-					header('WWW-Authenticate: Basic', false, 401);
-					exit;
-				}
-			break;
-			
-			case "init":
-				if(!is_writable(".")){
-					echo "<html><head><title>Error</title><style>";
-					printBaseCSSRules();
-					echo "</style></head><body><h1>Permission error</h1><p>SimpleCidRep parent folder is not writable by the webserver. Please, change the directory permissions in order to process the installation script.</p></body></html>";
-				}
-				else if(file_exists("param.php")){
-					echo "<html><head><title>Error</title><style>";
-					printBaseCSSRules();
-					echo "</style></head><body><h1>Permission error</h1><p>A former param.php file exists on this server. Please, remove it and proceed again.</p></body></html>";
-				}
-				else{
-					try {
+
+		case "init" :
+			if(!is_writable("."))
+				printInitRightsErrorPage();
+			else if(file_exists("param.php"))
+				printInitPreviousParamPage();
+			else{
+				if($_SERVER['REQUEST_METHOD']=='GET')
+					printInitPage();
+				else if($_SERVER['REQUEST_METHOD']=='POST'){
+					try{
 						mkdir($_POST["uploadDir"], 0755);
 						mkdir($_POST["tmpDir"], 0755);						
 						$vParam = fopen("param.php", "w");
@@ -441,42 +103,189 @@ else{
 						fwrite($vIndex, "header('location: ".substr($fLocalUploadsFolder, 0,-1)."');\n");
 						fwrite($vIndex, "?>");
 						fclose($vIndex);
-						
-						$vManifest = "http";
-						if(isset($_SERVER['HTTPS'])) $vManifest .= "s";
-						$vManifest .= "://".$_SERVER['HTTP_HOST'].$_SERVER['PHP_SELF'];
-						$vScriptname=end(explode('/',$_SERVER['PHP_SELF']));
-						$vUploadPath = str_replace("/".$vScriptname,'',$vManifest);
-						
-						echo "<html><head><title>SimpleCidRep installation succeed</title><style>";
-						printBaseCSSRules();
-						echo "</style></head><body><h1>Your SimpleCIDRep is now ready</h1><p>You should now remove the writing permission of the SimpleCidRep parent directory.</p>
-						<p>Your CID manifest URL is: <a href='$vManifest'>$vManifest</a>.</p>
-						<p>Your uploads will be available at: <a href='$vUploadPath'>$vUploadPath</a>.</p></body></html>";
-					}
-					catch (Exception $pException){
-					echo "<html><head><title>Error</title><style>";
-					printBaseCSSRules();
-					echo "</style></head><body><h1>Error durring the installation process</h1><p>";
-						echo "Caught exception: ".$pException->getMessage()."\n";
-										echo "</p>";
-										header("HTTP1/1 500 internal server error");
+
+						printInitSuccessPage($vManifest, $vUploadPath);
+					}catch(Exception $pException){
+						printInitErrorPage($pException);
+						header("HTTP1/1 500 internal server error");
 					}
 				}
-			break;
-			
-			default:
-				echo "<html><head><title>Error</title><style>";
-					printBaseCSSRules();
-					echo "</style></head><body><h1>Error : file not found</h1><p>The cdaction ".$_GET["cdaction"]." is not used.</p></body></html>";
-				header("HTTP/1.0 404 Not Found");
-			break;
-		}
-		
+				else{
+					print404Page();
+					header("HTTP/1.0 404 Not Found");
+				}
+			}
 		break;
-	
-	default:
-		header("Allow:GET, POST",false, 405);
+		
+		case "negotiationFrame":
+			if ((array_key_exists($_SERVER['PHP_AUTH_USER'], $fUsers ) == null || $fUsers[$_SERVER['PHP_AUTH_USER']]!=$_SERVER['PHP_AUTH_PW'])){
+				header('WWW-Authenticate: Basic', false, 401);
+				exit;
+			} else {
+				if(file_exists($fTempFolder.getParam("uploadedFile"))){
+					printNegotiationFrame();
+				}else{
+					echo "<html><head><title>Error</title><style>";
+					printBaseCSSRules();
+					echo "</style></head><body><h1>Error</h1><p>There is no file named ".getParam("uploadedFile")." in tmp directory.</p></body></html>";
+				}
+			}
+		break;
+		
+		case "newFolder":
+			if ((array_key_exists($_SERVER['PHP_AUTH_USER'], $fUsers ) == null || $fUsers[$_SERVER['PHP_AUTH_USER']]!=$_SERVER['PHP_AUTH_PW'])){
+				header('WWW-Authenticate: Basic', false, 401);
+				exit;
+			}
+			
+			if(!mkdir($fLocalUploadsFolder.$_POST["newFolderName"], 0755))
+				header("HTTP1/1 500 internal server error");
+		break;
+
+		case "upload":
+			if ((array_key_exists($_SERVER['PHP_AUTH_USER'], $fUsers ) == null || $fUsers[$_SERVER['PHP_AUTH_USER']]!=$_SERVER['PHP_AUTH_PW'])){
+				header('WWW-Authenticate: Basic', false, 401);
+				exit;
+			}
+			if(!is_writable($fTempFolder)){
+				header("HTTP1/1 500 internal server error");
+				exit;
+			}
+			$vFilename = getParam("File-name");
+			if(!$vFilename) $vFilename = "myFile";
+			$vPath = $fTempFolder.basename($vFilename);
+				
+			if(checkPhpUpload($vFilename)){
+				echo "Impossible to upload php file.";
+				header("HTTP/1.1 403 forbidden");
+				exit;
+			}
+			
+			$vSuccess = false;
+			
+			if($_FILES["cidContent"]){
+				if($_FILES["cidContent"]["error"]){
+					switch ($_FILES["cidContent"]["error"]){
+						case 1:
+							echo "The uploaded file exceeds the upload_max_filesize directive in php.ini.";
+							header("HTTP1/1 413 request entity too large", false, 413);
+							break;
+				
+						case 2:
+							echo "The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form. ";
+							header("HTTP1/1 413 request entity too large", false, 413);
+							break;
+				
+						case 3:
+							echo "The uploaded file was only partially uploaded.";
+							header("HTTP1/1 415 unsupported media type", true, 415);
+							break;
+				
+						case 4:
+							echo "No file was uploaded.";
+							header("HTTP1/1 415 unsupported media type", true, 415);
+							break;
+				
+						case 6:
+							echo "Missing a temporary folder.";
+							header("HTTP1/1 500 internal server error");
+							break;
+				
+						case 7:
+							echo "Failed to write file to disk.";
+							header("HTTP1/1 500 internal server error");
+							break;
+				
+						case 8:
+							echo "A PHP extension stopped the file upload. PHP does not provide a way to ascertain which extension caused the file upload to stop; examining the list of loaded extensions with phpinfo() may help.";
+							header("HTTP1/1 500 internal server error");
+							break;
+				
+						default:
+							echo "unknown error.";
+							header("HTTP1/1 418 i'm a teapot", true, 418);
+							break;
+					}
+					exit;
+				}
+				if(move_uploaded_file($_FILES["cidContent"]['tmp_name'],$vPath))
+					$vSuccess = true;
+			}
+			else{
+				try{
+					if(isset($_POST["cidContent"])){
+						$vSuccess = file_put_contents($vPath, urldecode($_POST["cidContent"]));
+					}
+					else{
+						$requestdata = fopen("php://input", "r");
+						$fp = fopen($vPath, "w");
+						while ($data = fread($requestdata, 1024)) fwrite($fp, $data);
+						fclose($fp);
+						fclose($requestdata);
+						$vSuccess = true;
+					}
+					
+						
+					if($fAutoDezip) unzip($vPath);
+					
+				}catch (Exception $pException){
+					header("HTTP1/1 500 internal server error");
+					echo $pException;
+				}
+			}	
+		if($vSuccess)
+			echo '{"uploadedFile":"'.$vFilename.'"}';
+		else
+			header("HTTP1/1 500 internal server error");
+
+		break;
+			
+		case "finalizeUpload":
+			if(isset($_POST["autoDezip"])){
+				unzip($fTempFolder.$_POST['uploadedFile'], $fLocalUploadsFolder.substr($_POST["sendedLocation"], 1));
+				echo "<html><head><title>Success</title><style>";
+				printBaseCSSRules();
+				echo "</style>
+						<script>
+							fireEndEvent = function(){
+								var vEndEvent = document.createEvent(\"CustomEvent\");
+								vEndEvent.initCustomEvent('cid-interaction-ended', true, true, {'Public-URL':'.$vUploadPath.'/'.$vPath.'});
+								dispatchEvent(vEndEvent);
+							}
+						</script></head><body><h1>Upload succeed</h1><p>Your package was correctly uploaded on this SimpleCIDRep. Visit <a href='".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."'>".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."</a> to consult it.</p><input type='button' value='next' onclick='fireEndEvent();'></body></html>";
+			}
+			elseif(rename ( $fTempFolder.$_POST['uploadedFile'], $fLocalUploadsFolder.substr($_POST["sendedLocation"], 1).$_POST['pathInput'] )){
+			
+				echo "<html><head><title>Success</title><style>";
+				printBaseCSSRules();
+				echo "</style>
+						<script>
+							fireEndEvent = function(){
+								var vEndEvent = document.createEvent(\"CustomEvent\");
+								vEndEvent.initCustomEvent('cid-interaction-ended', true, true, {'Public-URL':'.$vUploadPath.'/'.$vPath.'});
+								dispatchEvent(vEndEvent);
+							}
+						</script></head><body><h1>Upload succeed</h1><p>Your package was correctly uploaded on this SimpleCIDRep. Visit <a href='".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."'>".$fLocalUploadsFolder.substr($_POST["sendedLocation"], 1)."</a> to consult it.</p><input type='button' value='next' onclick='fireEndEvent();'></body></html>";
+			
+			}
+			else{
+				echo "<html><head><title>Error</title><style>";
+				printBaseCSSRules();
+				echo "</style>
+						<script>
+							fireAbortEvent = function(){
+								var vAbortEvent = document.createEvent(\"CustomEvent\");
+								vAbortEvent.initCustomEvent('cid-interaction-aborted', true, true, null);
+								dispatchEvent(vAbortEvent);
+							}
+						</script>
+					</head><body><h1>Upload error</h1><p>Error during the finalization of the upload.</p><input type='button' value='quit' onclick='fireAbortEvent();'></body></html>";
+			}
+		break;
+		default:
+			print404Page();
+			header("HTTP/1.0 404 Not Found");
+			break;
 	}
 }
 
@@ -839,3 +648,284 @@ function printInitCSS(){
 		color:transparent;
 	}";
 }
+
+function getParam($pName){
+	if(isset($_POST[$pName]))
+		return $_POST[$pName];
+	if(isset($_GET[$pName]))
+		return $_GET[$pName];
+	foreach (getallheaders() as $vName => $vValue)
+	if($vName == $pName) return $vValue;
+	return null;
+}
+
+function printManifest(){
+	echo
+	"<?xml version='1.0' encoding='UTF-8'?>
+	<cid:manifest xmlns:cid='http://www.kelis.fr/cid/v2/core'>
+	<cid:process>
+		<cid:label xml:lang='fr'>Dépôt de fichier</cid:label>
+		<cid:label xml:lang='en'>Deposit file</cid:label>
+		<cid:doc xml:lang='fr'>Ce serveur réceptionne des fichiers et les entrepose dans un unique dossier.</cid:doc>
+		<cid:meta name='File-name' cardinality='?'/>
+		<cid:meta name='Public-URL' cardinality='1'/>
+		<cid:exchange url=\"".$_SERVER['PHP_SELF']."?cdaction=testAuth\" required='false'/>
+		<cid:upload url=\"".$_SERVER['PHP_SELF']."?cdaction=upload\" useMetas='File-name'/>
+		<cid:interact url=\"".$_SERVER['PHP_SELF']."?cdaction=negotiationFrame\" required='true' returnMetas='Public-URL'/>
+	</cid:process>
+	<cid:authentications><cid:basicHttp/></cid:authentications>
+	<cid:transports>
+		<cid:webTransport needCookies='false' sessionProperties='uploadedFile'>
+			<cid:webExchange method='GET' properties='header queryString'/>
+			<cid:webExchange method='POST;application/x-www-form-urlencoded' properties='post header queryString'/>
+			<cid:webExchange method='POST;multipart/form-data' properties='post header queryString'/>
+			<cid:webUpload method='PUT' properties='header queryString'/>
+			<cid:webUpload method='POST' properties='header queryString'/>
+			<cid:webUpload method='POST;multipart/form-data' properties='post header queryString'/>
+			<cid:webInteract method='POST;application/x-www-form-urlencoded' properties='post header queryString'/>
+			<cid:webInteract  method='GET' properties='header queryString'/>
+			<cid:webInteract method='POST;multipart/form-data' properties='post header queryString'/>
+	</cid:webTransport>
+	</cid:transports>
+</cid:manifest>";
+}
+
+function printControlPage(){
+	echo "<html><head><title>Control CID Rep</title><style>";
+	printBaseCSSRules();
+	echo "</style></head><body><h1>Control CID Rep</h1>";
+
+	echo "<p>Writing permission of root directory: ";
+	if(is_writable(".")) echo "true, you should remove the writing permission of this folder</p>";
+	else echo "false</p>";
+
+	echo "<p>Writing permission of upload directory: ";
+	if(!is_writable($fLocalUploadsFolder)) echo "false, you should set up the writing permission of this folder</p>";
+	else echo "true</p>";
+	
+	echo "<p>Writing permission of tmp directory: ";
+	if(!is_writable($fTempFolder)) echo "false, you should set up the writing permission of this folder</p>";
+	else echo "true</p>";
+
+	echo "<p>Maximum upload size: ";
+	echo ini_get("upload_max_filesize");
+	echo  "</p>";
+		
+	echo "</body></html>";
+	break;
+}
+
+function printSuccessPage($pUploadPath){
+	echo "<html><head><title>Success</title><style>";
+	printBaseCSSRules();
+	echo "</style></head><body><h1>Upload succeed</h1><p>Your package was correctly uploaded on this SingleCidRep. Visit <a href='$pUploadPath'>$pUploadPath</a> to consult it.</p></body></html>";
+}
+
+function printInitRightsErrorPage(){
+	echo "<html><head><title>Error</title><style>";
+	printBaseCSSRules();
+	echo "</style></head><body><h1>Permission error</h1><p>SimpleCidRep parent folder is not writable by the webserver. Please, change the directory permissions in order to process the installation script.</p></body></html>";
+}
+
+function printInitPreviousParamPage(){
+	echo "<html><head><title>Error</title><style>";
+	printBaseCSSRules();
+	echo "</style></head><body><h1>Permission error</h1><p>A former param.php file exists on this server. Please, remove it and proceed again.</p></body></html>";
+}
+
+function printInitPage(){
+	echo "<!DOCTYPE html PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN' 'http://www.w3.org/TR/html4/loose.dtd'>
+	<html>
+		<head>
+			<title>SimpleCidRep Settings</title>
+			<style>";
+		printInitCSS();
+		printBaseCSSRules();
+		echo "		</style>
+					<script>
+					fUsers = 1;
+			
+					isCorrect = function(){
+					var vCorrect = (document.getElementById('uploadDir').value != new String()) && (document.getElementById('tmpDir').value != new String())
+					vCorrect = vCorrect && document.getElementById('uploadDir').value != document.getElementById('tmpDir').value;
+					var vHTMLUsers = document.getElementById('users');
+					for(var i = 1 ; i < vHTMLUsers.children.length ; i++){
+						vCorrect = vCorrect && vHTMLUsers.children[i].children[0].children[0].value != new String();
+						vCorrect = vCorrect && vHTMLUsers.children[i].children[1].children[0].value != new String();
+						vCorrect = vCorrect && vHTMLUsers.children[i].children[1].children[0].value == vHTMLUsers.children[i].children[2].children[0].value;
+					}
+		
+					if(vCorrect)
+						document.getElementById('submit').disabled=false;
+					else
+						document.getElementById('submit').disabled=true;
+					}
+					checkName = function(pString){return pString.match(/[\w._~&-]+/) && pString.match(/[\w._~&-]+/)[0]=== pString;}
+					
+					newUser = function(){
+					
+					var vTdLogin = document.createElement('td');
+					var vLogin = document.createElement('input');
+					vLogin.setAttribute('name','user['+fUsers+'][login]');
+					vLogin.setAttribute('id', 'user'+fUsers+'login');
+					vLogin.setAttribute('type','text');
+					vLogin.onchange = function(){isCorrect(); if(this.value!= new String()) this.className='ok'; else this.className='error';}
+					vTdLogin.appendChild(vLogin);			
+		
+					var vTdPassword = document.createElement('td');
+					var vPassword = document.createElement('input');
+					vPassword.setAttribute('name','user['+fUsers+'][password]');
+					vPassword.setAttribute('id', 'user'+fUsers+'password');
+					vPassword.setAttribute('type','password');
+					vPassword.setAttribute('onchange', \"";
+					printPasswordCheck("\"+fUsers+\"");
+					echo"\");
+					vTdPassword.appendChild(vPassword);
+
+					var vTdPasswordConfirm = document.createElement('td');
+					var vPasswordConfirm = document.createElement('input');
+					vPasswordConfirm.setAttribute('id', 'user'+fUsers+'confirm');
+					vPasswordConfirm.setAttribute('type','password');
+					vPasswordConfirm.setAttribute('onchange', \"";
+					printConfirmCheck("\"+fUsers+\"");
+					echo "\");
+					vTdPasswordConfirm.appendChild(vPasswordConfirm);
+		
+					var vTdDelete = document.createElement('td');
+					var vDelete = document.createElement('input');
+					vDelete.setAttribute('type', 'button');
+					vDelete.className='deleteButton';
+					vDelete.setAttribute('value', 'delete');
+					vDelete.onclick = function(){this.parentNode.parentNode.parentNode.removeChild(this.parentNode.parentNode);}
+					vTdDelete.appendChild(vDelete);
+		
+					var vTr = document.createElement('tr');
+					vTr.appendChild(vTdLogin);
+					vTr.appendChild(vTdPassword);
+					vTr.appendChild(vTdPasswordConfirm);
+					vTr.appendChild(vTdDelete);
+		
+					fUsers++;
+					
+					document.getElementById('users').appendChild(vTr);
+					isCorrect();
+				}
+		
+				</script>
+		</head>
+		<body>
+			<h1>SimpleCIDRep Settings</h1>
+			<form method='post' action='?cdaction=init'>
+				
+				<label for='uploadDir' style=' float:left; width:180px'>Upload directory: </label>
+				<input id='uploadDir'class='ok' name='uploadDir' type='text' value='uploads' onchange=\"isCorrect(); if(checkName(this.value) && this.value!=document.getElementById('tmpDir').value) this.className='ok'; else this.className='error';\"/>
+				<br/>		
+				<label for='tmpDir' style=' float:left; width:180px'>Tmp directory: </label>
+				<input id='tmpDir' class='ok' name='tmpDir' type='text' value='tmp' onchange=\"isCorrect(); if(checkName(this.value)&& this.value!=document.getElementById('uploadDir').value) this.className='ok'; else this.className='error';\"/>
+				<br/>		
+				
+				<label>Users:</label>
+				<table >
+				  <tbody id='users'>
+				  <tr>
+				    <td>Login</td>
+				    <td>Password</td>
+					<td>Confirm password</td>
+				  </tr>
+				  <tr>
+				    <td>
+						<input id='user0login' name='user[0][login]' type='text' onchange=\"isCorrect(); if(this.value!= new String()) this.className='ok'; else this.className='error';\"/>
+					</td>
+					<td>
+						<input id='user0password' name='user[0][password]' type='password' onchange=\"";
+						printPasswordCheck(0);
+						echo "\"/>
+					</td>
+					<td>
+						<input id='user0confirm' type='password' onchange=\"";
+						printConfirmCheck(0);
+						echo "\"/>
+					</td>
+				  </tr>
+				</tbody>
+				</table>
+				<input type='button' id='addUser' value='add user' alt='add user button' onclick='newUser();'/>
+				<br/>
+				<label for='phpUpload' style='float:left; width:180px' title='Leave this box unchecked unless you need to send php files (security hole).'>Authorize php upload:</label>
+				<input type='checkbox' name='phpUpload' id='phpUpload' style='float:left;' title='Leave this box unchecked unless you need to send php files (security hole).'/>
+				<br/>
+				<input type='submit' id='submit' value='Initialize SimpleCidRep' disabled='true' />
+			</form>
+		</body>
+	<html/>";
+}
+
+function printInitSuccessPage($pManifest, $pUploadPath){
+	echo "<html><head><title>SimpleCidRep installation succeed</title><style>";
+	printBaseCSSRules();
+	echo "</style></head><body><h1>Your SimpleCIDRep is now ready</h1><p>You should now remove the writing permission of the SimpleCidRep parent directory.</p>
+	<p>Your CID manifest URL is: <a href='$vManifest'>$vManifest</a>.</p>
+	<p>Your uploads will be available at: <a href='$vUploadPath'>$vUploadPath</a>.</p></body></html>";
+}
+
+function printInitErrorPage(Exception $pException){
+	echo "<html><head><title>Error</title><style>";
+	printBaseCSSRules();
+	echo "</style></head><body><h1>Error durring the installation process</h1><p>";
+	echo "Caught exception: ".$pException->getMessage()."\n";
+	echo "</p></body></html>";
+}
+
+function print404Page(){
+	echo "<html><head><title>Error</title><style>";
+	printBaseCSSRules();
+	echo "</style></head><body><h1>Error : file not found</h1><p>The cdaction ".$_GET["cdaction"]." is not used.</p></body></html>";
+}
+
+function printNegotiationFrame(){
+	include 'param.php';
+	echo "<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN' 'http://www.w3.org/TR/html4/loose.dtd'>
+	<html>
+	<head>
+	<script>";
+	printFileSectorJs();
+	echo "fs=";
+	getUploadFs($fLocalUploadsFolder);
+	echo "</script>
+							<style>";
+	printBaseCSSRules();
+	printFileSelectorCSS();
+	echo "</style>
+		</head>
+		<title>File selector</title>
+		<body>";
+	echo "<h1>Choose the final file destination</h1>
+	<form  enctype='multipart/form-data' action='".$_SERVER['PHP_SELF']."?cdaction=finalizeUpload' method='post'>
+	<p>Uploaded file: ".getParam("uploadedFile")."</p>
+	<input id='uploadedFile' class='hidden' name='uploadedFile'  type='text' value='".getParam("uploadedFile")."'/>
+	<input id='sendedLocation' name='sendedLocation' class='hidden' type='text'/>
+
+		<fieldset>
+			<legend>Choix de l'URL d'upload</legend>
+			<div id='toolbar'>
+				<input type='button'  value='home' alt='home button' class='toolboxCommand' id='home'  onclick='fileSelector.loadContener(new Array());'/>
+				<label class='toolboxCommand'>Location: </label>
+				<input type='text'  class='toolboxCommand' id='location' disabled='true'  />
+				<input type='button' value='new folder' alt='new folder button'  class='toolboxCommand' id='newFolder' onclick='fileSelector.newFolder();'/>
+			</div>
+			<ul id='fileSelector'/>
+		</fieldset>
+		<label for='pathInput' id='pathInputLabel'>Final path: </label>
+		<span id='path'/>
+		<input id='pathInput' this.class='ok' name='pathInput' type='text' value='".getParam("uploadedFile")."'onkeyup='fileSelector.updateInputState();' />
+		<input id='finalizeUpload' type='submit'  value='send'/></br>";
+	$finfo = finfo_open(FILEINFO_MIME_TYPE);
+
+	if(finfo_file($finfo, $fTempFolder.getparam("uploadedFile"))=="application/zip")
+		echo "<label for='autoDezip'>AutoDezip: </label><input type='checkbox' id='autoDezip' name='autoDezip' onclick='fileSelector.checkAutoDezip()'/>
+		</form>
+		<script>fileSelector.loadContener(new Array());</script>
+		</body>
+		</html>";
+}
+?>

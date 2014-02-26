@@ -43,78 +43,283 @@ if(!file_exists("param.php") && $_GET["cdaction"] != "init"){
 	header("Location: ".$_SERVER["PHP_SELF"]."?cdaction=init");
 }
 else{
-	include 'param.php';
+	if(file_exists("param.php"))
+		include 'param.php';
+	
+	switch ($_GET["cdaction"]){
 		
-	switch ($_SERVER['REQUEST_METHOD']) {
-		case 'GET':
-			if(!isset($_GET["cdaction"])){
-				echo "<?xml version='1.0' encoding='UTF-8'?>
-			<cid:manifest xmlns:cid='http://www.kelis.fr/cid/v1/core'>
-		    <cid:authentication>
-		        <cid:basicHttp testUrl=\"".$_SERVER['PHP_SELF']."?cdaction=testAuth\"/>
-		    </cid:authentication>
-		    <cid:content>
-		        <cid:simpleContent mimeType='*'/>
-		       	<cid:scorm version='1.2' useContentType='zip/application'/>
-		    </cid:content>
-		    <cid:transport>
-		        <cid:singleHttpRequest url=\"".$_SERVER['PHP_SELF']."?cdaction=upload\">
-		            <cid:post multipartFileField='upload' multipartTypeField='contentType' multipartDispositionField='disposition'/>
-		            <cid:negociation>
-		                <cid:frameWeb/>
-		            </cid:negociation>
-		        </cid:singleHttpRequest>
-		    </cid:transport>
-		</cid:manifest>";
+		case null:
+			printManifest(); 
 			header("Content-Type:application/xml");
+		break;
+		
+		case "control" : 
+			printControlPage();
+		break;
+		
+		case "testAuth":
+			if ($_SERVER['PHP_AUTH_USER']!= $fUser || $_SERVER['PHP_AUTH_PW'] != $fPassword)
+				header('WWW-Authenticate: Basic', false, 401);
+			exit;
+		break;
+		
+		case "init" :
+			if(!is_writable("."))
+				printInitRightsErrorPage();
+			else if(file_exists("param.php"))
+				printInitPreviousParamPage();
+			else{
+				if($_SERVER['REQUEST_METHOD']=='GET')
+					printInitPage();
+				else if($_SERVER['REQUEST_METHOD']=='POST'){
+					try{
+						mkdir("SCR-Upload", 0755);
+						$vParam = fopen("param.php", "w");
+						fwrite($vParam, "<?php\n");
+						fwrite($vParam, "\$fUser=\"".$_POST["user"]."\";\n");
+						fwrite($vParam, "\$fPassword=\"".$_POST["password"]."\";\n");
+							
+						if(isset($_POST['autodezip']) && $_POST['autodezip'] == 'on') fwrite($vParam, "\$fAutoDezip=true;\n");
+						else fwrite($vParam, "\$fAutoDezip=false;\n");
+							
+						if(isset($_POST['phpUpload']) && $_POST['phpUpload'] == 'on') fwrite($vParam, "\$fPhpUpload=true;\n");
+						else fwrite($vParam, "\$fPhpUpload=false;\n");
+							
+						fwrite($vParam, "?>");
+						fclose($vParam);
+						$vIndex = fopen("index.php", "w");
+						fwrite($vIndex, "<?php\n");
+						fwrite($vIndex, "header('location: SCR-Upload');\n");
+						fwrite($vIndex, "?>");
+						fclose($vIndex);
+						
+						printInitSuccessPage($vManifest, $vUploadPath);
+					}catch(Exception $pException){
+						printInitErrorPage($pException);
+						header("HTTP1/1 500 internal server error");
+					}
+				}
+				else{
+					print404Page();
+					header("HTTP/1.0 404 Not Found");
+				}
+			}
+		break;
+		
+		case "upload":
+			
+			if ($_SERVER['PHP_AUTH_USER']!= $fUser || $_SERVER['PHP_AUTH_PW'] != $fPassword) {
+				header('WWW-Authenticate: Basic', false, 401);
+				exit;
+			}
+			if(!is_writable("SCR-Upload")){
+				header("HTTP1/1 500 internal server error");
+				exit;
 			}
 			
+			$vFilename = getParam("File-name");
+			if(!$vFilename) $vFilename = "myFile";
+			$vPath = "SCR-Upload/".basename($vFilename);
+			
+			if(checkPhpUpload($vFilename)){
+				echo "Impossible to upload php file.";
+				header("HTTP/1.1 403 forbidden");
+				exit;
+			}
+						
+			$vSuccess = false;
+			
+			if($_FILES["cidContent"]){
+				if($_FILES["cidContent"]["error"]){
+					switch ($_FILES["cidContent"]["error"]){
+						case 1:
+							echo "The uploaded file exceeds the upload_max_filesize directive in php.ini.";
+							header("HTTP1/1 413 request entity too large", false, 413);
+							break;
+				
+						case 2:
+							echo "The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form. ";
+							header("HTTP1/1 413 request entity too large", false, 413);
+							break;
+				
+						case 3:
+							echo "The uploaded file was only partially uploaded.";
+							header("HTTP1/1 415 unsupported media type", true, 415);
+							break;
+				
+						case 4:
+							echo "No file was uploaded.";
+							header("HTTP1/1 415 unsupported media type", true, 415);
+							break;
+				
+						case 6:
+							echo "Missing a temporary folder.";
+							header("HTTP1/1 500 internal server error");
+							break;
+				
+						case 7:
+							echo "Failed to write file to disk.";
+							header("HTTP1/1 500 internal server error");
+							break;
+				
+						case 8:
+							echo "A PHP extension stopped the file upload. PHP does not provide a way to ascertain which extension caused the file upload to stop; examining the list of loaded extensions with phpinfo() may help.";
+							header("HTTP1/1 500 internal server error");
+							break;
+				
+						default:
+							echo "unknown error.";
+							header("HTTP1/1 418 i'm a teapot", true, 418);
+							break;
+					}
+					exit;
+				}
+				if(move_uploaded_file($_FILES["cidContent"]['tmp_name'],$vPath))
+					$vSuccess = true;
+			}
 			else{
-				switch ($_GET["cdaction"]){
-					case "control":
-						echo "<html><head><title>Control CID Rep</title><style>";
-						printBaseCSSRules();
-						echo "</style></head><body><h1>Control CID Rep</h1>";
-						
-						echo "<p>Writing permission of root directory: ";
-						if(is_writable(".")) echo "true, you should remove the writing permission of this folder</p>";
-						else echo "false</p>";
-						
-						echo "<p>Writing permission of upload directory: ";
-						if(!is_writable("SCR-Upload")) echo "false, you should set up the writing permission of this folder</p>";
-						else echo "true</p>";
-						
-						echo "<p>Maximum upload size: ";
-						echo ini_get("upload_max_filesize");
-						echo  "</p>";
-							
-						echo "</body></html>";	
-					break;
-					case "testAuth" :
-						if ($_SERVER['PHP_AUTH_USER']!= $fUser || $_SERVER['PHP_AUTH_PW'] != $fPassword)
-							header('WWW-Authenticate: Basic', false, 401);
-						exit;
-					break;
+				try{
+					if(isset($_POST["cidContent"])){
+						$vSuccess = file_put_contents($vPath, urldecode($_POST["cidContent"]));
+					}
+					else{
+						$requestdata = fopen("php://input", "r");
+						$fp = fopen($vPath, "w");
+						while ($data = fread($requestdata, 1024)) fwrite($fp, $data);
+						fclose($fp);
+						fclose($requestdata);
+						$vSuccess = true;
+					}
 					
-					case "success" :
-						echo "<html><head><title>Success</title><style>";
-					printBaseCSSRules();
-					echo "</style></head><body><h1>Upload succeed</h1><p>Your package was correctly uploaded on this SingleCidRep. Visit <a href='$vUploadPath'>$vUploadPath</a> to consult it.</p></body></html>";
-					break;
+						
+					if($fAutoDezip) unzip($vPath);
 					
-					case "init" :
-						if(!is_writable(".")){
-							echo "<html><head><title>Error</title><style>";
-							printBaseCSSRules();
-							echo "</style></head><body><h1>Permission error</h1><p>SingleCidRep parent folder is not writable by the webserver. Please, change the directory permissions in order to process the installation script.</p></body></html>";
-						}
-						else if(file_exists("param.php")){
-							echo "<html><head><title>Error</title><style>";
-							printBaseCSSRules();
-							echo "</style></head><body><h1>Permission error</h1><p>A former param.php file exists on this server. Please, remove it and proceed again.</p></body></html>";		
-						}
-						else{
-							echo "<!DOCTYPE html PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN' 'http://www.w3.org/TR/html4/loose.dtd'>
+				}catch (Exception $pException){
+					header("HTTP1/1 500 internal server error");
+					echo $pException;
+				}
+			}	
+		if($vSuccess)
+			echo '{"uploadedFile":"'.$vFilename.'"}';
+		else
+			header("HTTP1/1 500 internal server error");
+
+		break;
+		
+		default:
+			print404Page();
+			header("HTTP/1.0 404 Not Found");
+		break;
+	}
+}
+
+function unzip($pPath){
+	$vArr = array();
+	$vZip = new ZipArchive();
+	$vRes = $vZip->open($pPath);
+	// if the $zip_file can be opened
+	if($vRes === TRUE) {
+		// traverse the index number of the files in archive, store in array the name of the files in archive
+		for($i = 0; $i < $vZip->numFiles; $i++) {
+			if(checkPhpUpload($vZip->getNameIndex($i))){
+				echo "Unable to dezip the archive. The uploaded archive contains php files.";
+				header("HTTP/1.1 403 forbidden", true, 403);
+			}
+			$vArr[] = $vZip->getNameIndex($i);
+		}
+		$vZip->extractTo("SCR-Upload");
+		$vZip->close();
+		unlink($pPath);
+		return $vArr;
+	}
+}
+
+function checkPhpUpload($pName){
+	include 'param.php';
+	return (!$fPhpUpload  && (substr($pName, -3) === "php"));
+}
+
+function printBaseCSSRules(){
+	echo "body{
+			color: #515151;
+			font-family: 'Open Sans', Helvetica, Arial, sans-serif;
+			width: 600px;
+	}";
+}
+
+function getParam($pName){
+	if(isset($_POST[$pName]))
+		return $_POST[$pName];
+	if(isset($_GET[$pName]))
+		return $_GET[$pName];
+	foreach (getallheaders() as $vName => $vValue)
+	    if($vName == $pName) return $vValue;
+	return null;
+}
+
+function printManifest(){
+	echo 
+"<?xml version='1.0' encoding='UTF-8'?>
+<cid:manifest xmlns:cid='http://www.kelis.fr/cid/v2/core'>
+    <cid:process>
+        <cid:label xml:lang='en'>Remote file repository</cid:label>
+        <cid:label xml:lang='fr'>Dépôt de fichier</cid:label>
+        <cid:doc xml:lang='fr'>This server accept any content and entrepose it in a single repository.</cid:doc>
+        <cid:meta name='File-name' cardinality='?'/>
+        <cid:meta name='File-URL' cardinality='1'/>
+        <cid:exchange url=\"".$_SERVER['PHP_SELF']."?cdaction=testAuth\" required='false'/>
+        <cid:upload url=\"".$_SERVER['PHP_SELF']."?cdaction=upload\" step='unique' required='true'  useMetas='File-name' returnMetas='Public-URL'/>
+    </cid:process>
+    <cid:authentications>
+        <cid:basicHttp/>
+    </cid:authentications>
+    <cid:transports>
+        <cid:webTransport needCookies='false'>
+            <cid:webExchange method='GET' properties='header queryString'/>
+            <cid:webExchange method='POST;application/x-www-form-urlencoded' properties='post header queryString'/>
+            <cid:webExchange method='POST;multipart/form-data' properties='post header queryString'/>
+            <cid:webUpload method='PUT' properties='header queryString'/>
+            <cid:webUpload method='POST' properties='header queryString'/>
+            <cid:webUpload method='POST;multipart/form-data' properties='post header queryString'/>
+        </cid:webTransport>
+    </cid:transports>
+</cid:manifest>";
+}
+
+function printControlPage(){
+	echo "<html><head><title>Control CID Rep</title><style>";
+	printBaseCSSRules();
+	echo "</style></head><body><h1>Control CID Rep</h1>";
+	
+	echo "<p>Writing permission of root directory: ";
+	if(is_writable(".")) echo "true, you should remove the writing permission of this folder</p>";
+	else echo "false</p>";
+	
+	echo "<p>Writing permission of upload directory: ";
+	if(!is_writable("SCR-Upload")) echo "false, you should set up the writing permission of this folder</p>";
+	else echo "true</p>";
+	
+	echo "<p>Maximum upload size: ";
+	echo ini_get("upload_max_filesize");
+	echo  "</p>";
+		
+	echo "</body></html>";
+}
+
+function printInitRightsErrorPage(){
+	echo "<html><head><title>Error</title><style>";
+	printBaseCSSRules();
+	echo "</style></head><body><h1>Permission error</h1><p>SingleCidRep parent folder is not writable by the webserver. Please, change the directory permissions in order to process the installation script.</p></body></html>";
+}
+
+function printInitPreviousParamPage(){
+	echo "<html><head><title>Error</title><style>";
+	printBaseCSSRules();
+	echo "</style></head><body><h1>Permission error</h1><p>A former param.php file exists on this server. Please, remove it and proceed again.</p></body></html>";
+}
+
+function printInitPage(){
+		echo "<!DOCTYPE html PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN' 'http://www.w3.org/TR/html4/loose.dtd'>
 		<html>
 			<head>
 				<title>SingleCidRep Settings</title>
@@ -125,8 +330,8 @@ else{
 					.error{
 						background-color:#f4d7d7;
 					}";
-					printBaseCSSRules();
-					echo "</style>
+		printBaseCSSRules();
+		echo "</style>
 			</head>
 			<body>
 				<h1>SingleCIDRep Settings</h1>
@@ -139,13 +344,13 @@ else{
 							document.getElementById('submit').disabled=true;
 					}
 					</script>
-							
+				
 					<label for='user' style=' float:left; width:180px'>Login: </label>
 					<input id='user' name='user' type='text' onchange=\"isCorrect(); if(this.value!= new String()) this.className='ok'; else this.className='error';\"/>
 					<br/>
 					<label for='password' style='float:left; width:180px'>Password:</label>
 					<input id='password' name='password' type='password' onchange=\"isCorrect();
-					/*on init*/
+					//on init
 					if(this.className == new String() && document.getElementById('confirmpassword').className == new String()){
 						if(this.value!= new String())	this.className='ok';
 						else this.className='error';
@@ -177,204 +382,27 @@ else{
 				You should define a maximum upload size higher than 10M.</p>
 			</body>
 		<html/>";
-						}
-					break;
-
-					default:
-						echo "<html><head><title>Error</title><style>";
-					printBaseCSSRules();
-					echo "</style></head><body><h1>Error : file not found</h1><p>The cdaction ".$_GET["cdaction"]." is not used.</p></body></html>";
-						header("HTTP/1.0 404 Not Found");
-					break;
-				}
-			}
-			
-		break;
-		case 'POST':
-			switch ($_GET["cdaction"]){
-				case "init":
-					if(!is_writable(".")){
-						echo "<html><head><title>Error</title><style>";
-						printBaseCSSRules();
-						echo "</style></head><body><h1>Permission error</h1><p>SingleCidRep parent folder is not writable by the webserver. Please, change the directory permissions in order to process the installation script.</p></body></html>";
-					}
-					else if(file_exists("param.php")){
-						echo "<html><head><title>Error</title><style>";
-						printBaseCSSRules();
-						echo "</style></head><body><h1>Permission error</h1><p>A former param.php file exists on this server. Please, remove it and proceed again.</p></body></html>";
-					}
-					else{
-						try {
-							mkdir("SCR-Upload", 0755);
-							$vParam = fopen("param.php", "w");
-							fwrite($vParam, "<?php\n");
-							fwrite($vParam, "\$fUser=\"".$_POST["user"]."\";\n");
-							fwrite($vParam, "\$fPassword=\"".$_POST["password"]."\";\n");
-					
-							if(isset($_POST['autodezip']) && $_POST['autodezip'] == 'on') fwrite($vParam, "\$fAutoDezip=true;\n");
-							else fwrite($vParam, "\$fAutoDezip=false;\n");
-					
-							if(isset($_POST['phpUpload']) && $_POST['phpUpload'] == 'on') fwrite($vParam, "\$fPhpUpload=true;\n");
-							else fwrite($vParam, "\$fPhpUpload=false;\n");
-					
-							fwrite($vParam, "?>");
-							fclose($vParam);
-							$vIndex = fopen("index.php", "w");
-							fwrite($vIndex, "<?php\n");
-							fwrite($vIndex, "header('location: SCR-Upload');\n");
-							fwrite($vIndex, "?>");
-							fclose($vIndex);
-							
-							echo "<html><head><title>SingleCidRep installation succeed</title><style>";
-							printBaseCSSRules();
-							echo "</style></head><body><h1>Your SingleCIDRep is now ready</h1><p>You should now remove the writing permission of the SingleCidRep parent directory.</p>
-							<p>Your CID manifest URL is: <a href='$vManifest'>$vManifest</a>.</p>
-							<p>Your uploads will be available at: <a href='$vUploadPath'>$vUploadPath</a>.</p></body></html>";
-						}
-						catch (Exception $pException){
-						echo "<html><head><title>Error</title><style>";
-						printBaseCSSRules();
-						echo "</style></head><body><h1>Error durring the installation process</h1><p>";
-						echo "Caught exception: ".$pException->getMessage()."\n";
-											echo "</p>";
-											header("HTTP1/1 500 internal server error");
-					}
-				}
-				break;
-				
-				case "testAuth":
-					if ($_SERVER['PHP_AUTH_USER']!= $fUser || $_SERVER['PHP_AUTH_PW'] != $fPassword) {
-						header('WWW-Authenticate: Basic', false, 401);
-						exit;
-					}
-				break;
-				
-				case "upload":
-					if ($_SERVER['PHP_AUTH_USER']!= $fUser || $_SERVER['PHP_AUTH_PW'] != $fPassword) {
-						header('WWW-Authenticate: Basic', false, 401);
-						exit;
-					}
-					if(!is_writable("SCR-Upload")){
-						header("HTTP1/1 500 internal server error");
-						exit;
-					}
-					if($_FILES["upload"]["error"]){
-						switch ($_FILES["upload"]["error"]){
-							case 1:
-								echo "The uploaded file exceeds the upload_max_filesize directive in php.ini."; 
-								header("HTTP1/1 413 request entity too large", false, 413);
-							break;
-	
-							case 2:
-								echo "The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form. ";	
-								header("HTTP1/1 413 request entity too large", false, 413);
-							break;
-							
-							case 3:
-								echo "The uploaded file was only partially uploaded.";
-								header("HTTP1/1 415 unsupported media type", true, 415);
-							break;
-								
-							case 4:
-								echo "No file was uploaded.";
-								header("HTTP1/1 415 unsupported media type", true, 415);
-							break;
-							
-							case 6:
-								echo "Missing a temporary folder.";
-								header("HTTP1/1 500 internal server error");
-							break;
-							
-							case 7:
-								echo "Failed to write file to disk.";
-								header("HTTP1/1 500 internal server error");
-							break;
-							
-							case 8:
-								echo "A PHP extension stopped the file upload. PHP does not provide a way to ascertain which extension caused the file upload to stop; examining the list of loaded extensions with phpinfo() may help.";
-								header("HTTP1/1 500 internal server error");		
-							break;
-							
-							default:
-								echo "unknown error.";
-								header("HTTP1/1 418 i'm a teapot", true, 418);
-							break;
-						}
-						exit;
-					}
-					$vFilename = $_FILES["upload"]['name'];
-					if($vFilename == "blob"){
-						$vContentDisposition = $_POST["disposition"];
-						$vStart = strrpos($vContentDisposition, "filename=")+9;
-						$vFilename = substr($vContentDisposition,$vStart);
-					}
-					if(checkPhpUpload($vFilename)){
-						echo "Impossible to upload php file.";
-						header("HTTP/1.1 403 forbidden");
-						exit;
-					}
-					$vPath = "SCR-Upload/".basename($vFilename);
-						
-					if(move_uploaded_file($_FILES["upload"]['tmp_name'],$vPath)){
-						if($fAutoDezip) unzip($vPath);
-						header("Location:".$_SERVER["PHP_SELF"]."?cdaction=success", false, 201);
-						
-					}
-					else{
-						//Assume that if the delivery failed. The content is not conform to the expected type.
-						header("HTTP1/1 415 unsupported media type", true, 415);
-					}
-				break;
-				
-				default:
-					echo "<html><head><title>Error</title><style>";
-					printBaseCSSRules();
-					echo "</style></head><body><h1>Error : file not found</h1><p>The cdaction ".$_GET["cdaction"]." is not used.</p></body></html>";
-					header("HTTP/1.0 404 Not Found");
-				break;
-			}
-			break;
-	
-		default:
-			header("Allow:GET, POST",false, 405);
-		break;
-	}
 }
 
-function unzip($pPath){
-	$vArr = array();
-	$vZip = new ZipArchive();
-	$vRes = $vZip->open($pPath);
-	// if the $zip_file can be opened
-	if($vRes === TRUE) {
-		// traverse the index number of the files in archive, store in array the name of the files in archive
-		for($i = 0; $i < $vZip->numFiles; $i++) {
-			if(checkPhpUpload($vZip->getNameIndex($i))){
-				echo "Unable to dezip the archive. The uploaded archive contains php files.";
-				header("HTTP/1.1 403 forbidden", true, 403);
-			}
-			$vArr[] = $vZip->getNameIndex($i);
-		}
-		$vZip->extractTo("SCR-Upload");
-		$vZip->close();
-		unlink($pPath);
-		return $vArr;
-	}
-	//else  echo "File correctly uploaded. Failed to dezip $zip_file , code: $vRes";
+function printInitSuccessPage($pManifest, $pUploadPath){
+	echo "<html><head><title>SingleCidRep installation succeed</title><style>";
+	printBaseCSSRules();
+	echo "</style></head><body><h1>Your SingleCIDRep is now ready</h1><p>You should now remove the writing permission of the SingleCidRep parent directory.</p>
+	<p>Your CID manifest URL is: <a href='$pManifest'>$pManifest</a>.</p>
+	<p>Your uploads will be available at: <a href='$pUploadPath'>$pUploadPath</a>.</p></body></html>";
 }
 
-function checkPhpUpload($pName){
-	include 'param.php';
-	return (!$fPhpUpload  && (substr($pName, -3) === "php"));
+function printInitErrorPage(Exception $pException){
+	echo "<html><head><title>Error</title><style>";
+	printBaseCSSRules();
+	echo "</style></head><body><h1>Error durring the installation process</h1><p>";
+	echo "Caught exception: ".$pException->getMessage()."\n";
+	echo "</p></body></html>";
 }
 
-function printBaseCSSRules(){
-	echo "body{
-			color: #515151;
-			font-family: 'Open Sans', Helvetica, Arial, sans-serif;
-			width: 600px;
-	}";
+function print404Page(){
+	echo "<html><head><title>Error</title><style>";
+	printBaseCSSRules();
+	echo "</style></head><body><h1>Error : file not found</h1><p>The cdaction ".$_GET["cdaction"]." is not used.</p></body></html>";
 }
-
-
 ?>

@@ -1,46 +1,43 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
-	<head>
-		<meta charset="UTF-8"/>
-		<script  src='js/client-CID.js'></script>
-	</head>
-	<body>
-		<h1>CID service validator</h1>
-		<div id="fields">
-			<fieldset id="main">
-				<legend>Get manifest</legend>
-				<p>
-					<label for="uri">Manifest url: </label><br>
-					<input id="uri" type="url" style="width:600px"/><br/>
-					<input id="getManifest" type="button" value="Get" onclick="clientCID.getManifest();"/>
-				</p>					
-			</fieldset>
-			<fieldset id="auth" style="display:none">
-				<legend>Authentication</legend>
-				<p>
-					<label for="user" style="display:block; float:left; width:90px">Login: </label>
-					<input id="user" type="text"/>
-					<br/>
-					<label for="password" style="display:block; float:left; width:90px">Password:</label>
-					<input id="password" type="password"/>
-				</p>
-			</fieldset>
-			
-			<fieldset id="push" style="display:none">
-				<legend>Push</legend>
-				<p>
-					<label for="file">Address of the file to push: </label>
-					<br/>
-					<input id="file" type="file"/>
-					<br/>
-					<input id="pushButton" type="button" value="Push"/>
-				</p>
-				<label id="progressLabel" style="display:none">Upload: </label>
-				<progress value="0" id="progress" style="display:none"/>
-			</fieldset>
-			<fieldset id="negociation" style="display:none;height:600px">
-				<iframe id="frame" style="width:100%; height:600px;"/>
-			</fieldset>
+<head>
+<meta charset="UTF-8" />
+<script src='js/cidLib.js'></script>
+</head>
+<body style="width:700px">
+	<h1>Generic CID client</h1>
+	<div id="CIDContainer">
+		<div id="manifestUrl">
+			<h2>Choose a CID server</h2>
+			<p>
+				<label for="manifestURL">URL of the CID manifest: </label><br /> <input
+					id="manifestURL" type="url"
+					value="http://localhost/cidOld-misc/simpleCIDRep/SimpleCIDRep.php" style="width: 500px" /><br />
+				<input id="getManifest" type="button" value="Get"
+					onclick="cidManager.getManifest();" />
+			</p>
 		</div>
-	</body>
+		<div id=processSelection style="display: none">
+			<h2>Select the deployment process</h2>
+			<div id="processSelContainer"></div>
+		</div>
+		<div id="params" style="display: none">
+			<div id="paramsContainer"></div>
+			<input id="paramsNextStep" type="button" value="Next"
+				onclick="cidManager.nextPanel();" />
+		</div>
+		<div id="upload" style="display: none">
+			<h2>File upload</h2>
+			<input type="file" id="fileForm" onchange="cidManager.fileSelectionChange();"><br />
+			<progress id="uploadMeter" value="0" max="100"></progress>
+			<br /> <input id="uploadNextStep" type="button" value="Upload the file"
+				onclick="cidManager.nextPanel();" disabled="true"/>
+		</div>
+		<div id="interact" style="display: none">
+			<h2>Direct interaction with the CID server</h2>
+			<iframe id="frame" style="width: 100%; height: 700px"></iframe>
+		</div>
+		<div id="end" style="display: none"></div>
+	</div>
+</body>
 </html>
