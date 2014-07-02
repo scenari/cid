@@ -17,6 +17,12 @@
 					onclick="cidManager.getManifest();" />
 			</p>
 		</div>
+		<div id="auth" style="display:none">
+			<h2>Authentication</h2>
+			<p><label for="login" style="width:75px;display:inline-block">Login: </label><input id="login" type="text"/></p>
+			<p><label for="password" style="width:75px;display:inline-block">Password: </label><input id="password" type="password"/></p>
+			<input type="button" value="Next" onclick="cidManager.fAuth.setAuth();">
+		</div>
 		<div id=processSelection style="display: none">
 			<h2>Select the deployment process</h2>
 			<div id="processSelContainer"></div>
@@ -28,7 +34,7 @@
 		</div>
 		<div id="upload" style="display: none">
 			<h2>File upload</h2>
-			<input type="file" id="fileForm" onchange="cidManager.fileSelectionChange();"><br />
+			<input type="file" id="fileForm" onchange="cidLib.fileSelectionChange();"><br />
 			<progress id="uploadMeter" value="0" max="100"></progress>
 			<br /> <input id="uploadNextStep" type="button" value="Upload the file"
 				onclick="cidManager.nextPanel();" disabled="true"/>

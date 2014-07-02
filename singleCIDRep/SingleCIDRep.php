@@ -33,35 +33,53 @@
  * terms of any one of the MPL, the GPL, the LGPL or the CeCILL. ]]LICENCE
  */
 
-$vManifest = "http";
-if(isset($_SERVER['HTTPS'])) $vManifest .= "s";
-$vManifest .= "://".$_SERVER['HTTP_HOST'].$_SERVER['PHP_SELF'];
+
+if (!function_exists('getallheaders')){
+	function getallheaders(){
+		$headers = '';
+		foreach ($_SERVER as $name => $value){
+			if (substr($name, 0, 5) == 'HTTP_')
+				$headers[str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($name, 5)))))] = $value;
+		}
+		return $headers;
+	}
+}
+
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Credentials: true");
+
+if($_SERVER['REQUEST_METHOD'] == "OPTIONS"){
+	header("Access-Control-Allow-Methods: GET, POST, PUT");
+	header("Access-Control-Allow-Headers: origin, content-type, accept, authorization, file-name");
+	exit;
+}
+
+$vManifest = getManifestAddress();
 $vScriptname=end(explode('/',$_SERVER['PHP_SELF']));
 $vUploadPath = str_replace("/".$vScriptname,'',$vManifest);
 
 if(!file_exists("param.php") && $_GET["cdaction"] != "init"){
-	header("Location: ".$_SERVER["PHP_SELF"]."?cdaction=init");
+	header("Location: ".$vManifest."?cdaction=init");
 }
 else{
-	if(file_exists("param.php"))
-		include 'param.php';
-	
+	if(file_exists("param.php")) include('param.php');
+
 	switch ($_GET["cdaction"]){
-		
+
 		case null:
-			printManifest(); 
+			printManifest();
 			header("Content-Type:application/xml");
-		break;
-		
-		case "control" : 
+			break;
+
+		case "control" :
 			printControlPage();
-		break;
-		
+			break;
+
 		case "testAuth":
 			if ($_SERVER['PHP_AUTH_USER']!= $fUser || $_SERVER['PHP_AUTH_PW'] != $fPassword)
 				header('WWW-Authenticate: Basic', false, 401);
 			exit;
-		break;
+			break;
 		
 		case "init" :
 			if(!is_writable("."))
@@ -92,11 +110,11 @@ else{
 						fwrite($vIndex, "header('location: SCR-Upload');\n");
 						fwrite($vIndex, "?>");
 						fclose($vIndex);
-						
+
 						printInitSuccessPage($vManifest, $vUploadPath);
 					}catch(Exception $pException){
 						printInitErrorPage($pException);
-						header("HTTP1/1 500 internal server error");
+						header("HTTP1/1 500 internal server error", false, 500);
 					}
 				}
 				else{
@@ -113,11 +131,10 @@ else{
 				exit;
 			}
 			if(!is_writable("SCR-Upload")){
-				header("HTTP1/1 500 internal server error");
+				header("HTTP1/1 500 internal server error", false, 500);
 				exit;
 			}
-			
-			$vFilename = getParam("File-name");
+			$vFilename = getParam("file-name");
 			if(!$vFilename) $vFilename = "myFile";
 			$vPath = "SCR-Upload/".basename($vFilename);
 			
@@ -126,7 +143,7 @@ else{
 				header("HTTP/1.1 403 forbidden");
 				exit;
 			}
-						
+			
 			$vSuccess = false;
 			
 			if($_FILES["cidContent"]){
@@ -154,17 +171,17 @@ else{
 				
 						case 6:
 							echo "Missing a temporary folder.";
-							header("HTTP1/1 500 internal server error");
+							header("HTTP1/1 500 internal server error", false, 500);
 							break;
 				
 						case 7:
 							echo "Failed to write file to disk.";
-							header("HTTP1/1 500 internal server error");
+							header("HTTP1/1 500 internal server error", false, 500);
 							break;
 				
 						case 8:
 							echo "A PHP extension stopped the file upload. PHP does not provide a way to ascertain which extension caused the file upload to stop; examining the list of loaded extensions with phpinfo() may help.";
-							header("HTTP1/1 500 internal server error");
+							header("HTTP1/1 500 internal server error", false, 500);
 							break;
 				
 						default:
@@ -195,21 +212,21 @@ else{
 					if($fAutoDezip) unzip($vPath);
 					
 				}catch (Exception $pException){
-					header("HTTP1/1 500 internal server error");
+					header("HTTP1/1 500 internal server error", false, 500);
 					echo $pException;
 				}
 			}	
 		if($vSuccess)
 			echo '{"uploadedFile":"'.$vFilename.'"}';
 		else
-			header("HTTP1/1 500 internal server error");
+			header("HTTP1/1 500 internal server error", false, 500);
 
 		break;
 		
 		default:
 			print404Page();
 			header("HTTP/1.0 404 Not Found");
-		break;
+			break;
 	}
 }
 
@@ -235,7 +252,7 @@ function unzip($pPath){
 }
 
 function checkPhpUpload($pName){
-	include 'param.php';
+	if(file_exists("param.php")) include('param.php');
 	return (!$fPhpUpload  && (substr($pName, -3) === "php"));
 }
 
@@ -243,46 +260,50 @@ function printBaseCSSRules(){
 	echo "body{
 			color: #515151;
 			font-family: 'Open Sans', Helvetica, Arial, sans-serif;
-			width: 600px;
+			width: 40em;
 	}";
 }
 
 function getParam($pName){
-	if(isset($_POST[$pName]))
-		return $_POST[$pName];
-	if(isset($_GET[$pName]))
-		return $_GET[$pName];
-	foreach (getallheaders() as $vName => $vValue)
-	    if($vName == $pName) return $vValue;
+	if(isset($_POST[$pName])) return $_POST[$pName];
+	if(isset($_GET[$pName])) return $_GET[$pName];
+	foreach (getallheaders() as $vName => $vValue) if(strtolower($vName) == strtolower($pName)) return $vValue;
 	return null;
 }
 
 function printManifest(){
+	$vManifest = getManifestAddress();
 	echo 
 "<?xml version='1.0' encoding='UTF-8'?>
-<cid:manifest xmlns:cid='http://www.kelis.fr/cid/v2/core'>
-    <cid:process>
-        <cid:label xml:lang='en'>Remote file repository</cid:label>
-        <cid:label xml:lang='fr'>Dépôt de fichier</cid:label>
-        <cid:doc xml:lang='fr'>This server accept any content and entrepose it in a single repository.</cid:doc>
-        <cid:meta name='File-name' cardinality='?'/>
-        <cid:meta name='File-URL' cardinality='1'/>
-        <cid:exchange url=\"".$_SERVER['PHP_SELF']."?cdaction=testAuth\" required='false'/>
-        <cid:upload url=\"".$_SERVER['PHP_SELF']."?cdaction=upload\" step='unique' required='true'  useMetas='File-name' returnMetas='Public-URL'/>
-    </cid:process>
-    <cid:authentications>
-        <cid:basicHttp/>
-    </cid:authentications>
-    <cid:transports>
-        <cid:webTransport needCookies='false'>
-            <cid:webExchange method='GET' properties='header queryString'/>
-            <cid:webExchange method='POST;application/x-www-form-urlencoded' properties='post header queryString'/>
-            <cid:webExchange method='POST;multipart/form-data' properties='post header queryString'/>
-            <cid:webUpload method='PUT' properties='header queryString'/>
-            <cid:webUpload method='POST' properties='header queryString'/>
-            <cid:webUpload method='POST;multipart/form-data' properties='post header queryString'/>
-        </cid:webTransport>
-    </cid:transports>
+<cid:manifest xmlns:cid='http://www.cid-protocol.org/schema/v1/core'>
+  <cid:process>
+    <cid:label xml:lang='en'>Remote file repository</cid:label>
+    <cid:doc xml:lang='en'>This server accepts any content and entreposes it on a single repository.</cid:doc>
+    
+    <cid:meta name='file-name' cardinality='?' is='http://schema.org/name'>
+      <cid:label>File name</cid:label>
+    </cid:meta>
+    <cid:meta name='file-url' cardinality='1' is='http://schema.org/url'/>
+    <cid:exchange url=\"".$vManifest."?cdaction=testAuth\" required='false' is='http://schema.org/AuthorizeAction'/>
+    <cid:upload url=\"".$vManifest."?cdaction=upload\" required='true'  useMetas='file-name' returnMetas='file-url'/>
+  </cid:process>
+  <cid:authentications>
+    <cid:basicHttp/>
+  </cid:authentications>
+  <cid:transports>
+    <cid:webTransport needCookies='false'>
+      <cid:webExchange>
+        <request method='GET' properties='header queryString'/>
+        <request method='POST;application/x-www-form-urlencoded' properties='post header queryString'/>
+        <request method='POST;multipart/form-data' properties='post header queryString'/>
+      </cid:webExchange>
+      <cid:webUpload>
+        <request method='PUT' properties='header queryString'/>
+        <request method='POST' properties='header queryString'/>
+        <request method='POST;multipart/form-data' properties='post header queryString'/>
+      </cid:webUpload>
+    </cid:webTransport>
+  </cid:transports>
 </cid:manifest>";
 }
 
@@ -290,11 +311,11 @@ function printControlPage(){
 	echo "<html><head><title>Control CID Rep</title><style>";
 	printBaseCSSRules();
 	echo "</style></head><body><h1>Control CID Rep</h1>";
-	
+
 	echo "<p>Writing permission of root directory: ";
 	if(is_writable(".")) echo "true, you should remove the writing permission of this folder</p>";
 	else echo "false</p>";
-	
+
 	echo "<p>Writing permission of upload directory: ";
 	if(!is_writable("SCR-Upload")) echo "false, you should set up the writing permission of this folder</p>";
 	else echo "true</p>";
@@ -309,8 +330,8 @@ function printControlPage(){
 function printInitRightsErrorPage(){
 	echo "<html><head><title>Error</title><style>";
 	printBaseCSSRules();
-	echo "</style></head><body><h1>Permission error</h1><p>SingleCidRep parent folder is not writable by the webserver. Please, change the directory permissions in order to process the installation script.</p></body></html>";
-}
+	echo "</style></head><body><h1>Permission error</h1><p>The parent folder of this SingleCidRep is not writable by the server. Please, change the directory permissions in order to execute the installation script.</p></body></html>";
+	}
 
 function printInitPreviousParamPage(){
 	echo "<html><head><title>Error</title><style>";
@@ -404,5 +425,12 @@ function print404Page(){
 	echo "<html><head><title>Error</title><style>";
 	printBaseCSSRules();
 	echo "</style></head><body><h1>Error : file not found</h1><p>The cdaction ".$_GET["cdaction"]." is not used.</p></body></html>";
+}
+
+function getManifestAddress(){
+	$vManifest = "http";
+	if(isset($_SERVER['HTTPS'])) $vManifest .= "s";
+	$vManifest .= "://".$_SERVER['HTTP_HOST'].$_SERVER['PHP_SELF'];
+	return $vManifest;
 }
 ?>
