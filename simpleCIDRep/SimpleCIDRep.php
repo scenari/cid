@@ -554,9 +554,9 @@ fileSelector = {
 			if(vXhr.readyState == 4){
 				if(vXhr.status==200){
 					var vResponse = JSON.parse(vXhr.response);
-					parent.postMessage({\"status\":\"cid-interaction-ended\", \"Public-URL\":vResponse.finalUrl}, '*');
+					parent.postMessage({\"cidInteraction\":\"ended\", \"Public-URL\":vResponse.finalUrl}, '*');
 				}
-				else  parent.postMessage({\"status\":\"cid-interaction-aborted\"}, '*');
+				else  parent.postMessage({\"cidInteraction\":\"aborted\"}, '*');
 			}
 		}
 		vXhr.send(new FormData(document.getElementsByTagName('form')[0]));
@@ -684,11 +684,9 @@ function printManifest(){
     <cid:upload url=\"".$vManifest."?cdaction=upload\" required='true' useMetas='file-name'/>
     <cid:interact url=\"".$vManifest."?cdaction=negotiationFrame\" required='true' returnMetas='file-url'/>
   </cid:process>
-  <cid:authentications>
-    <cid:basicHttp/>
-  </cid:authentications>
   <cid:transports>
     <cid:webTransport needCookies='false' sessionProperties='uploadedFile'>
+      <cid:authentications><cid:basicHttp/></cid:authentications>	
       <cid:webExchange>
         <request method='GET' properties='header queryString'/>
         <request method='POST;application/x-www-form-urlencoded' properties='post header queryString'/>
