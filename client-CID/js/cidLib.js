@@ -37,18 +37,6 @@
  */
 cidLib = {
 	/**
-	 * The list of supported auth.
-	 * A new auth class must defines a init, setAuth and makeAuth functions.
-	 */
-	fSupportedAuths : [
-	{
-		fName : "basicHttp",
-		//the browser does not provide basic auth login features for CORS requests.
-		fAuth : function() {if (location.host != cidManager.fManifestURL.host) return new cidLib.basicAuth();else return null;}
-	},{ 
-		fName : "noAuthentication", fAuth : function() {return null;}
-	} ],
-	/**
 	 * The list of supported transport.
 	 */
 	fSupportedTransports : [ 
@@ -217,29 +205,42 @@ cidLib = {
  * This object handle the request to the server.
  */
 cidLib.webTransport = function() {
+	//Force cookies in CORS context (withCredential XMLHTTPRequest attribute)
+	this.fCookieAware = null;
 	//Desc of the supported features of web exchange
 	this.fExchange = null;
 	//Desc of the supported features of web upload
 	this.fUpload = null;
 	//Desc of the supported features of web Interact
 	this.fInteract = null;
+	//Auth object
+	this.fAuth = null;
 }
 
 /**
  * Send upload request
  * @param {Element} pStep, the XML element which describes the step
- * @param {Auth} pAuth, the authentication object (optional)
  */
-cidLib.webTransport.prototype.upload = function(pStep, pAuth) {
+cidLib.webTransport.prototype.upload = function(pStep) {
+	//Handle authentication
+	if(this.fAuth && !this.fAuth.processed){
+		this.fAuth.processed = "true";
+		if(this.fAuth.method == "interact" ) this.interact(this.fAuth);
+		else if(this.fAuth.method == "basic") cidManager.changePanel("auth");
+		return;
+	}
+	
+	//Upload
 	this.fUpload.step = pStep;
 	var vUrl = cidLib.buildHttpUrl(cidManager.fManifestURL, pStep.node.getAttribute("url"));
 	var vXhr = new XMLHttpRequest();
+	if(this.fCookieAware) vXhr.withCredentials = true;
 	// Preprocessing of params if the only prop storage possiblity is
 	// querystring
 	var vParams = { fUrl : vUrl, fCbType : "makeQueryString" }
 	vUrl = this.processParam(this.fUpload, vParams).fUrl;
 	vXhr.open(this.fUpload.method, vUrl);
-	if (pAuth) pAuth.makeAuth(vXhr);
+	if (this.fAuth && this.fAuth.method == "basic") this.fAuth.makeAuth(vXhr, "xhr");
 	var vReturn = this.makeContentToSend(this.fUpload, vXhr);
 	vXhr = vReturn.fXhr;
 	var vContentToSend = vReturn.fContentToSend;
@@ -274,18 +275,25 @@ cidLib.webTransport.prototype.upload = function(pStep, pAuth) {
 /**
  * send an exchange request.
  * @param {element} pStep, the XML element which describes the step
- * @param {Auth} pAuth, an authentication object (optional)
  */
-cidLib.webTransport.prototype.exchange = function(pStep, pAuth) {
+cidLib.webTransport.prototype.exchange = function(pStep) {
+	//process authentication
+	if(this.fAuth && !this.fAuth.processed){
+		this.fAuth.processed = "true";
+		if(this.fAuth.method == "interact" ) this.interact(this.fAuth);
+		else if(this.fAuth.method == "basic") cidManager.changePanel("auth");
+		return;
+	}
 	this.fExchange.step = pStep;
 	var vUrl = cidLib.buildHttpUrl(cidManager.fManifestURL, pStep.node.getAttribute("url"));
 	var vXhr = new XMLHttpRequest();
+	if(this.fCookieAware) vXhr.withCredentials = true;
 	// Preprocessing of params if the only prop storage possiblity is
 	// querystring
 	var vParams = { fUrl : vUrl, fCbType : "makeQueryString" }
 	vUrl = this.processParam(this.fExchange, vParams).fUrl;
 	vXhr.open(this.fExchange.method, vUrl);
-	if (pAuth) pAuth.makeAuth(vXhr);
+	if (this.fAuth && this.fAuth.method == "basic") this.fAuth.makeAuth(vXhr, "xhr");
 	var vReturn = this.makeContentToSend(this.fExchange, vXhr);
 	vXhr = vReturn.fXhr;
 	var vContentToSend = vReturn.fContentToSend;
@@ -310,9 +318,16 @@ cidLib.webTransport.prototype.exchange = function(pStep, pAuth) {
 /**
  * init an interaction step
  * @param {Element} pStep, the XML element which describes the step
- * @param {} pAuth // Not in use...
  */
-cidLib.webTransport.prototype.interact = function(pStep, pAuth) {
+cidLib.webTransport.prototype.interact = function(pStep) {
+	//handle authentication
+	if(this.fAuth && !this.fAuth.processed){
+		this.fAuth.processed = "true";
+		if(this.fAuth.method == "interact" ) this.interact(this.fAuth);
+		else if(this.fAuth.method == "basic") cidManager.changePanel("auth");
+		return;
+	}
+	
 	this.fInteract.step = pStep;
 	var vUrl = cidLib.buildHttpUrl(cidManager.fManifestURL, pStep.node.getAttribute("url"));
 	var vInteractIFrame = document.getElementById("frame");
@@ -326,6 +341,7 @@ cidLib.webTransport.prototype.interact = function(pStep, pAuth) {
 		var vParams = { fForm : vForm, fCbType : "feedInteractForm" };
 		vParams = this.processParam(this.fInteract, vParams);
 		vDocument.body.appendChild(vParams.fForm);
+		if (this.fAuth && this.fAuth.method == "basic") this.fAuth.makeAuth(vParams.fForm, "form");
 		vParams.fForm.submit();
 	} else {
 		var vParams = { fUrl : vUrl, fCbType : "makeQueryString" };
@@ -340,15 +356,35 @@ cidLib.webTransport.prototype.interact = function(pStep, pAuth) {
  * @param {Element} pNode
  */
 cidLib.webTransport.prototype.init = function(pNode) {
-	this.fNode = pNode;
 	this.fCookieAware = pNode.getAttribute("needCookies");
 	var vProperties = pNode.getAttribute("sessionProperties");
 	if (vProperties) this.fSessionProperties = vProperties.split(" ");
 	else this.fSessionProperties = new Array();
-
+	
 	for (var vChild = pNode.firstElementChild; vChild; vChild = vChild.nextElementSibling) {
 		if (vChild.namespaceURI != cidManager.fNamespace) return;
 		switch (vChild.localName) {
+		case "authentications":
+			switch (vChild.firstElementChild.localName){
+				case "basicHttp":
+					this.fAuth = location.host != cidManager.fManifestURL.host ? new cidLib.basicAuth() : null;
+				break;
+				
+				case "webAuthentication":
+					this.fAuth = {
+						"method" : "interact",
+						"node" : vChild.firstElementChild,
+						"needMetas" : new Array(),
+						"useMetas" : new Array(),
+						"returnMetas" : new Array() 
+					}
+				break;
+				
+				//default => fAuth still init to null;
+					
+			}
+			break;
+			
 		case "webExchange":
 			if (!this.fExchange) {
 				this.fExchange = this.initMethod(vChild.firstElementChild);
@@ -553,13 +589,17 @@ cidLib.webTransport.prototype.frameLoaded = function(pEvent) {
  * @param {} pEvent
  */
 cidLib.webTransport.prototype.eventHandler = function(pEvent) {
-	if(pEvent.data.status == "cid-interaction-ended"){
+	if(pEvent.data.cidInteraction == "ended"){
+		
 		var vTransport = cidManager.fProcess.transport;
 		for (var i = 0; i < vTransport.fInteract.step.returnMetas.length; i++) {
 			var vPropName = vTransport.fInteract.step.returnMetas[i];
 			cidManager.fProperties.setProp(vPropName, pEvent.data[vPropName]);
 		}
 		cidManager.nextPanel();
+	}
+	else if(pEvent.data.cidAuth == "succeeded"){
+		cidManager.executeStep();
 	}
 	else{
 		var vPar = document.createElement("p").appendChild(document.createTextNode(cidLib.fMessages[4]));
@@ -656,10 +696,24 @@ cidLib.Process.prototype.debug = function() {
 cidLib.basicAuth = function() {
 	this.fUsername = "";
 	this.fPassword = "";
+	this.method = "basic";
 }
 
-cidLib.basicAuth.prototype.makeAuth = function(pParam) {
-	pParam.setRequestHeader('Authorization', "Basic " + btoa(this.fUsername + ":" + this.fPassword));
+cidLib.basicAuth.prototype.makeAuth = function(pParam, pType) {
+	if(pType == "xhr") pParam.setRequestHeader('Authorization', "Basic " + btoa(this.fUsername + ":" + this.fPassword));
+	if(pType == "form"){
+		var vInput = pParams.ownerDocument.createElement("input");
+		vInput.setAttribute("type", "hidden");
+		vInput.setAttribute("name", "username");
+		vInput.setAttribute("value", this.fUsername);
+		pParams.appendChild(vInput);
+		
+		vInput = pParams.ownerDocument.createElement("input");
+		vInput.setAttribute("type", "hidden");
+		vInput.setAttribute("name", "password");
+		vInput.setAttribute("value", this.fPassword);
+		pParams.appendChild(vInput);
+	}
 };
 
 cidLib.basicAuth.prototype.setAuth = function() {
@@ -679,10 +733,6 @@ fNamespace : null,
  * List of supported transports
  */
 fTransports : null,
-/**
- * Selected auth
- */
-fAuth : null,
 /**
  * 
  * List of known propertie.
@@ -718,12 +768,12 @@ cidManager.getManifest = function() {
 	vXhr.onreadystatechange = function(evt) {
 		try {
 			if (vXhr.readyState == 4) {
-				if (vXhr.readyState == 4) if (vXhr.responseXML && vXhr.status === 200) cidManager.init(vXhr.responseXML);
+			    if (vXhr.responseXML && vXhr.status === 200) cidManager.init(vXhr.responseXML);
 				else if (!vXhr.responseXML) window.alert(cidLib.fMessages[5]);
 				else window.alert(cidLib.messageError(vXhr.status));
 			}
 		} catch (e) {
-			console.log("uploadcb::" + e);
+			console.log("getManifest::" + e);
 			window.alert(cidLib.fMessages[6]);
 		}
 	}
@@ -759,18 +809,6 @@ cidManager.init = function(pManifest) {
 					this.fTransports.push(cidLib.fSupportedTransports[j].fTransport(vTransports[k].getAttribute("id")));
 					this.fTransports[this.fTransports.length - 1].transport.init(vTransports[k]);
 					vFoundTransport = true;
-				}
-			}
-			break;
-
-		case "authentications":
-			for (var j = 0; j < cidLib.fSupportedAuths.length; j++) {
-				var vAuthName = cidLib.fSupportedAuths[j].fName;
-				var vAuthNodes = vChild.getElementsByTagNameNS(this.fNamespace, vAuthName);
-				if (vAuthNodes.length > 0) {
-					this.fAuth = cidLib.fSupportedAuths[j].fAuth(this);
-					if (this.fAuth) this.fAuth.init(vAuthNodes[0]);
-					break;
 				}
 			}
 			break;
@@ -1207,7 +1245,6 @@ cidManager.executeNextStep = function() {
 	// If need new metas...
 	if (vMissingProps.length) {
 		this.makeSettingsPage(vMissingProps, cidLib.getLabel(this.fProcess.node));
-		if (this.fAuth) this.fAuth.authToDo = false;
 		this.changePanel("params");
 	} else this.executeStep();
 }
@@ -1215,16 +1252,12 @@ cidManager.executeNextStep = function() {
  * Execute the next step
  */
 cidManager.executeStep = function() {
-	if (this.fAuth && this.fAuth.authToDo) {
-		this.fAuth.authToDo = false;
-		return;
-	}
 	var vStep = this.fProcess.getNextStep();
 	if (vStep.node.localName == "upload" && this.fFile == null) {
 		cidManager.changePanel("upload");
 		return;
 	}
-	eval("this.fProcess.transport." + vStep.node.localName + "(vStep, this.fAuth)");
+	eval("this.fProcess.transport." + vStep.node.localName + "(vStep)");
 }
 /**
  * Callback of a successfully executed step
@@ -1311,7 +1344,7 @@ cidManager.nextPanel = function() {
 			if (vFileForm.files.length) {
 				
 				//Content type restriction handling
-				var vRestrictions = cidManager.fProcess.transport.fNode.getElementsByTagNameNS(cidManager.fNamespace, "restriction");
+				var vRestrictions = cidManager.fProcess.node.getElementsByTagNameNS(cidManager.fNamespace, "restriction");
 				for(var i = 0 ; i < vRestrictions.length ; i++){
 					if(cidLib.getMetaName(vRestrictions[i].getAttribute("is")) == "contentType"){
 						if(vRestrictions[i].getAttribute("value") != vFileForm.files[0])
@@ -1321,7 +1354,7 @@ cidManager.nextPanel = function() {
 				}
 				
 				//Content type restriction on meta definition handling
-				var vMetas = cidManager.fProcess.transport.fNode.getElementsByTagNameNS(cidManager.fNamespace, "meta");
+				var vMetas = cidManager.fProcess.node.getElementsByTagNameNS(cidManager.fNamespace, "meta");
 				for(var i = 0 ; i < vMetas.length ; i++){
 					if(cidLib.getMetaName(vMetas[i].getAttribute("is")) == "contentType"){
 						var vFound = false;
