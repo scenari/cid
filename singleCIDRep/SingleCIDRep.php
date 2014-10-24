@@ -287,11 +287,9 @@ function printManifest(){
     <cid:exchange url=\"".$vManifest."?cdaction=testAuth\" required='false' is='http://schema.org/AuthorizeAction'/>
     <cid:upload url=\"".$vManifest."?cdaction=upload\" required='true'  useMetas='file-name' returnMetas='file-url'/>
   </cid:process>
-  <cid:authentications>
-    <cid:basicHttp/>
-  </cid:authentications>
   <cid:transports>
     <cid:webTransport needCookies='false'>
+      <cid:authentications><cid:basicHttp/></cid:authentications>
       <cid:webExchange>
         <request method='GET' properties='header queryString'/>
         <request method='POST;application/x-www-form-urlencoded' properties='post header queryString'/>
