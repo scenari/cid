@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cid:manifest xmlns:cid="http://www.cid-protocol/schema/v1/core" xmlns:xml="http://www.w3.org/XML/1998/namespace" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.cid-protocol/schema/v1/core ../manifest/cid-core.xsd ">
+	<cid:process is="http://schema.org/FindAction http://schema.org/CheckAction">
+		<cid:label xml:lang="en">Public URL retrieving</cid:label>
+		<cid:doc xml:lang="en">Browse your online contents to retrieve a public URL.</cid:doc>
+		<cid:meta name="Public-url"  is="http://schema.org/url"/>
+		<!-- The process is composed by a single interaction step. -->
+		<cid:interact url="http://.." returnMetas="Public-url" required="true"/>
+	</cid:process>
+	<!-- 
+		The web interaction begins with a single HTTP request and ends with a 
+		custom javascript event named "cid-interaction-ended". The client must 
+		instantiate a web frame and fill it with the result of the first request.
+		It gets the returned metadata in the body of the custom event. In this 
+		example, the server does not furnish any authentication scheme. It could 
+		handle a web authentication in the frame.
+	-->
+	<cid:transports>
+		<cid:webTransport>
+			<cid:authentications>
+				<cid:noAuthentication/>
+			</cid:authentications>
+			<cid:webInteract>
+				<cid:request method="GET" properties="header queryString"/>
+				<cid:request method="POST;application/x-www-form-urlencoded" properties="queryString header post"/>
+				<cid:request method="POST;multipart/form-data" properties="header queryString post"/>
+			</cid:webInteract>
+		</cid:webTransport>
+	</cid:transports>
+</cid:manifest>

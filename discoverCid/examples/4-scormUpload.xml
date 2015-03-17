@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cid:manifest xmlns:cid="http://www.cid-protocol/schema/v1/core" xmlns:xml="http://www.w3.org/XML/1998/namespace" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.cid-protocol/schema/v1/core ../manifest/cid-core.xsd ">
+	<!-- 
+		This manifest declares two transports : the first without cookies, the 
+		second with. Two processes are also defined. They are respectively binded 
+		to the two different webtransports.
+	-->
+    
+	<!-- 
+		This process is binded to standard Transport. It uses a session property to
+		enable statefull servers.
+	-->
+	<cid:process transports="standardTransport" is="http://schema.org/SendAction">
+		<cid:label xml:lang="en">SCORM deployment</cid:label>
+
+		<!-- 
+			A restriction is similar to a meta with the difference that the 
+			restriction is implicit in the process. The value is unique and set only
+			once in the manifest and never sent by the client.
+		-->
+		<cid:restriction name="Zip-file-names-encoding" value="UTF-8">
+			<cid:label xml:lang="en">Encoding of the files-name</cid:label>
+		</cid:restriction>
+        
+		<!-- Definition of custom mimeType -->
+		<cid:meta name="Content-type" is="http://purl.org/dc/elements/1.1/type">
+			<cid:value>application/xx-scorm;v1.2</cid:value>
+			<cid:value>application/xx-scorm;v2004</cid:value>
+		</cid:meta>
+
+		<cid:upload url="http://example.com/upload?response=noCookies" needMetas="Content-type" required="true"/>
+		<cid:interact url="http://example.com/interact?response=noCookies" required="true"/>
+	</cid:process>
+    
+	<!-- 
+			This process is binded to the second transport. It needs a client which 
+			supports cookies 
+		-->
+	<cid:process transports="transportWithCookies" is="http://schema.org/SendAction">
+		<cid:restriction name="Zip-file-names-encoding" value="UTF-8"/>
+		<cid:upload url="http://example.com/upload?response=withCookies" needMetas="Content-type" required="true"/>
+		<cid:interact url="http://example.com/interact?response=withCookies" required="true"/>
+	</cid:process>
+
+	<cid:transports>
+		<cid:webTransport id="standardTransport">
+			<cid:authentications>
+				<cid:basicHttp/>
+			</cid:authentications>
+			<cid:webInteract>
+				<cid:request method="GET" properties="header queryString"/>
+				<cid:request method="POST;application/x-www-form-urlencoded" properties="queryString header post"/>
+				<cid:request method="POST;multipart/form-data" properties="header queryString post"/>
+			</cid:webInteract>
+            
+            <cid:webUpload>
+				<cid:request method="GET" properties="header queryString"/>
+				<cid:request method="POST" properties="queryString header"/>
+				<cid:request method="POST;multipart/form-data" properties="header queryString post"/>
+            </cid:webUpload>
+		</cid:webTransport>
+        
+		<cid:webTransport id="transportWithCookies" needCookies="true">
+			<cid:authentications>
+				<cid:basicHttp/>
+			</cid:authentications>
+			<cid:webInteract>
+				<cid:request method="GET" properties="header queryString"/>
+				<cid:request method="POST;application/x-www-form-urlencoded" properties="queryString header post"/>
+				<cid:request method="POST;multipart/form-data" properties="header queryString post"/>
+			</cid:webInteract>
+            
+            <cid:webUpload>
+				<cid:request method="GET" properties="header queryString"/>
+				<cid:request method="POST" properties="queryString header"/>
+				<cid:request method="POST;multipart/form-data" properties="header queryString post"/>
+            </cid:webUpload>
+		</cid:webTransport>
+	</cid:transports>
+</cid:manifest>

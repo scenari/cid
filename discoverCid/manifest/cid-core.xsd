@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified"
+	targetNamespace="http://www.cid-protocol/schema/v1/core"
+	xmlns:cid="http://www.cid-protocol/schema/v1/core">	
+	<xs:import schemaLocation="http://www.w3.org/2001/xml.xsd" namespace="http://www.w3.org/XML/1998/namespace"/>
+
+	<xs:element name="manifest">
+		<xs:complexType>
+			<xs:sequence>
+				<!-- Human oriented documentation -->
+				<xs:element name="label" minOccurs="0" maxOccurs="unbounded" type="cid:localized-element"/>
+				<xs:element name="doc" minOccurs="0" maxOccurs="unbounded" type="cid:localized-element"/>
+				
+				<!-- list of process -->
+				<xs:element name="process" maxOccurs="unbounded">
+					<xs:complexType>
+						<xs:sequence>
+							<!-- Human oriented process documentation -->					
+							<xs:element name="label" minOccurs="0" maxOccurs="unbounded" type="cid:localized-element"/>
+							<xs:element name="doc" minOccurs="0" maxOccurs="unbounded" type="cid:localized-element"/>
+							<!-- Meta and restriction declarationwebAsyncUpload -->
+							<xs:element name="restriction" minOccurs="0" maxOccurs="unbounded" type="cid:restriction-element"/>
+							<xs:element name="meta" minOccurs="0" maxOccurs="unbounded" type="cid:meta-element"/>
+							<!-- Steps declaration -->
+							<xs:choice maxOccurs="unbounded">
+								<xs:element name="exchange" type="cid:asyncStep-element"/>
+								<xs:element name="upload" type="cid:asyncStep-element"/>
+								<xs:element name="interact" type="cid:regularStep-element"/>
+							</xs:choice>
+						</xs:sequence>
+						
+						<!-- Bind a this process to a specific transport -->
+						<xs:attribute name="transports" type="xs:IDREFS"/>
+						<!-- Computer oriented process description -->
+						<xs:attribute name="is" type="cid:uri-list"/>
+					</xs:complexType>
+				</xs:element>
+				
+				<!-- List of defined transports -->
+				<xs:element name="transports">
+					<xs:complexType>
+						<xs:choice maxOccurs="unbounded">
+							<!-- Web transport declaration -->
+							<xs:element name="webTransport">
+								<xs:complexType>
+									<xs:all>
+										<!-- First transport declaration step : supported authentication -->
+										<xs:element name="authentications">
+											<xs:complexType>
+												<!-- An empty authentications element means "no authentication needed" --> 
+												<xs:choice minOccurs="0" maxOccurs="unbounded">
+													<xs:element name="noAuthentication"><xs:complexType/></xs:element>
+													<xs:element name="basicHttp"><xs:complexType/></xs:element>
+													<!-- Must be operated as a web interact -->
+													<xs:element name="webAuthentication">
+														<xs:complexType>
+															<xs:attribute name="url" type="xs:anyURI"/>
+														</xs:complexType>
+													</xs:element>
+												</xs:choice>
+											</xs:complexType>
+										</xs:element>
+										
+										<!-- List of step transport declaration -->
+										<xs:element name="webExchange" minOccurs="0">
+											<xs:complexType>
+												<xs:sequence>
+													<xs:element name="request" type="cid:regularRequest" maxOccurs="unbounded"/>
+												</xs:sequence>
+											</xs:complexType>
+										</xs:element>
+										<xs:element name="webInteract" minOccurs="0">
+											<xs:complexType>
+												<xs:sequence>
+													<xs:element name="request" type="cid:regularRequest" maxOccurs="unbounded"/>
+												</xs:sequence>
+											</xs:complexType>
+										</xs:element>
+										<xs:element name="webUpload" minOccurs="0">
+											<xs:complexType>
+												<xs:sequence>
+													<xs:element name="request" type="cid:uploadRequest" maxOccurs="unbounded"/>
+												</xs:sequence>
+											</xs:complexType>
+										</xs:element>
+									</xs:all>
+									
+									<!--  Id needed to bind a process to a specific transport -->
+									<xs:attribute name="id" type="xs:ID"/>
+									<!--  True if the server use a cookies -->
+									<xs:attribute name="needCookies" type="xs:boolean"/>
+									<!--  
+										Names of session properties. A session properties must be neutrally handled
+										 (returned by the client if sent by the server 
+									-->
+									<xs:attribute name="sessionProperties" type="cid:propName-list"/>
+								</xs:complexType>
+							</xs:element>
+							<xs:any namespace="##other"/>
+						</xs:choice>
+					</xs:complexType>
+				</xs:element>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+	
+	
+	<!-- *****************************************************************
+								SIMPLE TYPE LIBRARY
+	***************************************************************** -->
+	
+	<!-- List of uris (is attribute) -->
+	<xs:simpleType name="uri-list">
+		<xs:restriction>
+			<xs:simpleType>
+				<xs:list itemType="xs:anyURI"/>
+			</xs:simpleType>
+			<xs:minLength value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	
+	<!-- List of properties name (sessionProperties attribute) -->
+	<xs:simpleType name="propName-list">
+		<xs:restriction>
+			<xs:simpleType>
+				<xs:list itemType="xs:NCName"/>
+			</xs:simpleType>
+			<xs:minLength value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	
+	<!-- request method token definition (get or post) -->
+	<xs:simpleType name="getPost-token">
+		<xs:restriction base="xs:token">
+			<xs:enumeration value="GET"/>
+			<xs:enumeration value="POST;application/x-www-form-urlencoded"/>
+			<xs:enumeration value="POST;multipart/form-data"/>
+		</xs:restriction>
+	</xs:simpleType>
+	
+	<!-- request method token definition (get, put or post) -->
+	<xs:simpleType name="getPutPost-token">
+		<xs:restriction base="xs:token">
+			<xs:enumeration value="GET"/>
+			<xs:enumeration value="PUT"/>
+			<xs:enumeration value="POST"/>
+			<xs:enumeration value="POST;multipart/form-data"/>
+		</xs:restriction>
+	</xs:simpleType>
+ 
+	<!-- list of properties storage method (header, querystring or post) -->
+	<xs:simpleType name="postProp-list">
+		<xs:restriction>
+			<xs:simpleType>
+				<xs:list>
+					<xs:simpleType>
+						<xs:restriction base="xs:token">
+							<xs:enumeration value="header"/>
+							<xs:enumeration value="queryString"/>
+							<xs:enumeration value="post"/>
+						</xs:restriction>
+					</xs:simpleType>
+				</xs:list>
+			</xs:simpleType>
+			<xs:minLength value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+
+	
+	<!-- *****************************************************************
+								COMPLEXE TYPE LIBRARY
+	***************************************************************** -->
+	
+	<!-- localized informations (used to write human oriented doc) -->
+	<xs:complexType name="localized-element" mixed="true">
+		<xs:attribute ref="xml:lang"/>
+	</xs:complexType>
+    
+    <!-- restriction element -->
+	<xs:complexType name="restriction-element">
+		<xs:sequence>
+			<xs:element name="label" minOccurs="0" maxOccurs="unbounded" type="cid:localized-element"/>
+			<xs:element name="doc" minOccurs="0" maxOccurs="unbounded" type="cid:localized-element"/>
+		</xs:sequence>
+		<xs:attribute name="name" use="required" type="xs:NCName"/>
+		<xs:attribute name="is" type="cid:uri-list"/>
+		<xs:attribute name="value" use="required" type="xs:string"/>
+	</xs:complexType>
+	
+	<!-- meta element -->
+	<xs:complexType name="meta-element">
+		<xs:sequence>
+			<xs:element name="label" minOccurs="0" maxOccurs="unbounded" type="cid:localized-element"/>
+			<xs:element name="doc" minOccurs="0" maxOccurs="unbounded" type="cid:localized-element"/>
+			<xs:element name="value" minOccurs="0" maxOccurs="unbounded">
+				<xs:complexType mixed="true"/>
+			</xs:element>
+		</xs:sequence>
+		<xs:attribute name="name" use="required" type="xs:ID"/>
+		<xs:attribute name="cardinality">
+			<xs:simpleType>
+				<xs:restriction base="xs:token">
+					<xs:enumeration value="1"/>
+					<xs:enumeration value="?"/>
+					<xs:enumeration value="+"/>
+					<xs:enumeration value="*"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="is" type="cid:uri-list"/>
+	</xs:complexType>
+	
+	<!-- common step attribute -->
+	<xs:complexType name="step-commons">
+		<xs:attribute name="url" use="required" type="xs:anyURI"/>
+		<xs:attribute name="needMetas" type="xs:IDREFS"/>
+		<xs:attribute name="useMetas" type="xs:IDREFS"/>
+		<xs:attribute name="returnMetas" type="xs:IDREFS"/>
+	</xs:complexType>
+	
+	<!-- Step element (used by interact and asyncStep) -->
+	<xs:complexType name="regularStep-element">
+		<xs:complexContent>
+			<xs:extension base="cid:step-commons">
+				<xs:attribute name="is" type="cid:uri-list"/>
+				<xs:attribute name="required" type="xs:boolean"/>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	
+	<!-- Step element (used by upload and exchange) -->
+	<xs:complexType name="asyncStep-element">
+		<xs:complexContent>
+			<xs:extension base="cid:regularStep-element">
+				<xs:all>
+					<xs:element name="systemWait" minOccurs="0">
+						<xs:complexType>
+							<xs:complexContent>
+								<xs:extension base="cid:step-commons">
+									<xs:attribute name="waitProperties" type="cid:propName-list"/>
+								</xs:extension>
+							</xs:complexContent>
+						</xs:complexType>
+					</xs:element>
+					<xs:element name="userWait" minOccurs="0" type="cid:step-commons"/>
+				</xs:all>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+
+	<!-- Definition of a regular request (exchange/interact) -->
+	<xs:complexType name="regularRequest">
+		<xs:attribute name="method" use="required" type="cid:getPost-token"/>
+		<xs:attribute name="properties" use="required" type="cid:postProp-list"/>            
+	</xs:complexType>
+  
+	<!-- Definition of a request which contains -->
+	<xs:complexType name="uploadRequest">
+		<xs:attribute name="method" use="required" type="cid:getPutPost-token"/>
+		<xs:attribute name="properties" use="required" type="cid:postProp-list"/>            
+	</xs:complexType>
+	
+	<!-- Definition of a transport property -->
+	<xs:complexType name="property">
+		<xs:attribute name="key" use="required" type="xs:ID"/>
+		<xs:attribute name="value" use="required" type="xs:NCName"/>
+	</xs:complexType>
+	
+	
+	
+	
+	
+	
+	
+</xs:schema>

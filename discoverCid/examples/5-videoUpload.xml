@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cid:manifest xmlns:cid="http://www.cid-protocol/schema/v1/core" xmlns:xml="http://www.w3.org/XML/1998/namespace" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.cid-protocol/schema/v1/core ../manifest/cid-core.xsd ">
+	<cid:process is="http://schema.org/SendAction">
+		<cid:label xml:lang="en">DAM</cid:label>
+		<cid:meta name="Content-type" is="http://purl.org/dc/elements/1.1/type">
+			<cid:value>image/png</cid:value>
+			<cid:value>video/mpeg4</cid:value>
+		</cid:meta>
+
+		<cid:meta name="Public-url"  is="http://schema.org/url"/>
+		<!-- 
+			Meta could have cardinality (1, ?, * or +). Default cardinality is 1.
+		-->
+		<cid:meta name="dc-title" cardinality="?" is="http://purl.org/dc/elements/1.1/title"/>
+		<cid:meta name="dc-creator" cardinality="?" is="http://purl.org/dc/elements/1.1/creator"/>
+		<cid:meta name="dc-modified" cardinality="?" is="http://purl.org/dc/terms/modified"/>
+		<cid:meta name="tags" cardinality="*" is="http://schema.org/keywords"/>
+
+		<!-- 
+			An exchange step represents a default HTTP request.
+
+			In this process, the content to upload could be really large. This first 
+			optional step allows a client to check the authentication and 
+			authorization of a user before sending the content.
+		-->
+		<cid:exchange url="http://example.com/checkAuthorization" is="http://schema.org/AuthorizeAction" required="false"/>
+		<cid:interact url="http://example.com/interact-pre-delivery" useMetas="dc-title dc-creator dc-modified" returnMetas="dc-title dc-creator dc-modified tags" required="true"/>
+		<!-- 
+			Async upload.
+			À documenter
+		-->
+		<cid:upload url="http://example.com/upload?step=start" needMetas="dc-title dc-creator dc-modified tags" required="true">
+			<cid:systemWait url="http://example.com/wait?method=system" returnMetas="Public-url"/>
+			<cid:userWait url="http://example.com/wait?method=user" returnMetas="Public-url"/>
+		</cid:upload>
+				
+	</cid:process>
+
+	<cid:transports>
+		<cid:webTransport sessionProperties="session-ID">
+			<cid:authentications>
+				<cid:basicHttp/>
+				<cid:webAuthentication/>
+			</cid:authentications>
+
+			<cid:webExchange>
+				<cid:request method="GET" properties="header queryString"/>
+				<cid:request method="POST;application/x-www-form-urlencoded" properties="queryString header post"/>
+				<cid:request method="POST;multipart/form-data" properties="header queryString post"/>
+			</cid:webExchange>
+           
+			<cid:webInteract>
+				<cid:request method="GET" properties="header queryString"/>
+				<cid:request method="POST;application/x-www-form-urlencoded" properties="queryString header post"/>
+				<cid:request method="POST;multipart/form-data" properties="header queryString post"/>
+			</cid:webInteract>
+     
+			<cid:webUpload>
+     			<cid:request method="GET" properties="header queryString"/>
+				<cid:request method="POST" properties="queryString header"/>
+				<cid:request method="POST;multipart/form-data" properties="header queryString post"/>
+			</cid:webUpload>
+		</cid:webTransport>
+	</cid:transports>
+</cid:manifest>

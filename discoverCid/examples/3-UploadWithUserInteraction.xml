@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cid:manifest xmlns:cid="http://www.cid-protocol/schema/v1/core" xmlns:xml="http://www.w3.org/XML/1998/namespace" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.cid-protocol/schema/v1/core ../manifest/cid-core.xsd ">
+	<cid:process is="http://schema.org/SendAction">
+		<cid:label xml:lang="fr">Dépot de d'archives de ressources</cid:label>
+		<cid:meta name="Folder-path">
+			<cid:label xml:lang="en">Storage folder</cid:label>
+			<cid:doc xml:lang="en">
+                Path to the folder where the archive is unarchived.
+			</cid:doc>
+		</cid:meta>
+		<!--
+			The content-type metadata describes the type of the archive (and not of
+			its content). In this description, the server furnishes three possible 
+			values. The client must select a value between them.
+		-->
+		<cid:meta name="Content-type" is="http://purl.org/dc/elements/1.1/type">
+			<cid:label xml:lang="en">Available archived format</cid:label>
+			<cid:value>application/zip</cid:value>
+			<cid:value>application/jar</cid:value>
+			<cid:value>application/x-tar</cid:value>
+		</cid:meta>
+		<!--
+			The names of the files compressed in a zip archive could be encoded
+			following several schemes. In order to correctly decode it, this server 
+			request the encoding scheme as a metadata.
+		-->
+		<cid:meta name="Zip-file-names-encoding">
+			<cid:label xml:lang="fr">File name encoding of the archive</cid:label>
+			<cid:doc xml:lang="fr">This metadata should be sent if the Content-type is "application/zip".</cid:doc>
+			<cid:value>UTF-8</cid:value>
+			<cid:value>ISO-8859-1</cid:value>
+			<cid:value>CP437</cid:value>
+		</cid:meta>
+		<!--
+			This process is composed of two steps :
+			
+			1. An optional interaction step (which could use the Folder-path 
+			metadata). This interaction allows the user to define the path where 
+			the file will be unarchived. In this example, the Folder-path could be 
+			sent by the client in the request. The server could then build a 
+			dedicated GUI where this path is already selected. The server returns 
+			the overloaded Folder-path value in the "cid-interaction-ended" event.
+
+			2. A required upload step, which needs the folder-path and the
+			content-type metadata and which could use the Zip-file-names-encoding
+			metadata.
+		-->
+		<cid:interact url="http://..." useMetas="Folder-path" returnMetas="Folder-path" required="false"/>
+		<cid:upload url="http://..." needMetas="Zip-file-names-encoding Content-type Folder-path" required="true"/>
+	</cid:process>
+	<!-- 
+		The web transport specified by this server includes a session property.
+		This property could be returned whith the metadata at each step of the 
+		process. When this property is returned, the client must send it back in the
+		next step of the process. This feature enables statefull servers.
+	-->
+	<cid:transports>
+		<cid:webTransport sessionProperties="session-ID">
+			<cid:authentications>
+				<cid:basicHttp/>
+				<cid:webAuthentication/>
+			</cid:authentications>
+			<cid:webInteract>
+				<cid:request method="GET" properties="header queryString"/>
+				<cid:request method="POST;application/x-www-form-urlencoded" properties="queryString header post"/>
+				<cid:request method="POST;multipart/form-data" properties="header queryString post"/>
+			</cid:webInteract>
+			<cid:webUpload>
+				<cid:request method="GET" properties="header queryString"/>
+				<cid:request method="POST" properties="queryString header"/>
+				<cid:request method="POST;multipart/form-data" properties="header queryString post"/>
+			</cid:webUpload>
+		</cid:webTransport>
+	</cid:transports>
+</cid:manifest>
